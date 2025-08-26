@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional, List
 import os, re, ipaddress, io, csv, shutil
 from starlette.responses import StreamingResponse
+from PIL import Image, ImageDraw, ImageFont
 
 import crud, models, schemas
 from database import engine, Base, SessionLocal
@@ -398,6 +399,53 @@ async def settings_update(
             db.add(logo_setting)
         else:
             logo_setting.value = logo_path
+
+    db.commit()
+
+    return RedirectResponse(url="/admin/settings", status_code=303)
+
+@app.post("/admin/settings/generate_logo")
+@admin_required
+def generate_logo_action(
+    request: Request,
+    logo_text: str = Form(...),
+    background_color: str = Form(...),
+    effect: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    width, height = 1200, 250
+    hex_color = background_color.lstrip('#')
+    bg_rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    img = Image.new("RGB", (width, height), bg_rgb)
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default(size=100)
+
+    text_bbox = draw.textbbox((0, 0), logo_text, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    x = (width - text_width) / 2
+    y = (height - text_height) / 2
+
+    if effect == "engrave":
+        draw.text((x+2, y+2), logo_text, font=font, fill=(0,0,0,100))
+        draw.text((x, y), logo_text, font=font, fill=(255,255,255,128))
+    elif effect == "emboss":
+        draw.text((x-2, y-2), logo_text, font=font, fill=(255,255,255,128))
+        draw.text((x, y), logo_text, font=font, fill=(0,0,0,100))
+    else:
+        draw.text((x, y), logo_text, font=font, fill=(255,255,255))
+
+    logo_path = "static/generated-logo.png"
+    img.save(logo_path, "PNG")
+
+    logo_setting = db.query(models.Setting).filter(models.Setting.key == "logo_path").first()
+    if not logo_setting:
+        logo_setting = models.Setting(key="logo_path", value=logo_path)
+        db.add(logo_setting)
+    else:
+        logo_setting.value = logo_path
 
     db.commit()
 
