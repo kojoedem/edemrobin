@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit User - {{ user_to_edit.username }}{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Edit User: {{ user_to_edit.username }}</h1>
+
+<div class="bg-white rounded-xl shadow p-4 max-w-lg mx-auto">
+  <form method="post" action="/admin/users/{{ user_to_edit.id }}/edit" class="space-y-6">
+
+    <div>
+      <label for="level" class="text-sm font-medium block mb-1">Access Level</label>
+      <select name="level" id="level" class="w-full border rounded px-3 py-2">
+        <option value="1" {% if user_to_edit.level == 1 %}selected{% endif %}>1 - View Only</option>
+        <option value="2" {% if user_to_edit.level == 2 %}selected{% endif %}>2 - Allocate</option>
+        <option value="3" {% if user_to_edit.level == 3 %}selected{% endif %}>3 - Admin</option>
+      </select>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="is_admin" name="is_admin" value="true" {% if user_to_edit.is_admin %}checked{% endif %} class="h-4 w-4">
+      <label for="is_admin" class="text-sm font-medium">Is Admin?</label>
+    </div>
+
+    <div>
+        <h3 class="text-md font-semibold mb-2">Allowed IP Blocks</h3>
+        <div class="space-y-2 max-h-60 overflow-y-auto border rounded-lg p-3">
+            {% for block in all_blocks %}
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="allowed_blocks" value="{{ block.id }}" id="block_{{ block.id }}"
+                           {% if block.id in user_block_ids %}checked{% endif %} class="h-4 w-4">
+                    <label for="block_{{ block.id }}" class="text-sm">{{ block.cidr }} ({{ block.description or 'No description' }})</label>
+                </div>
+            {% else %}
+                <p class="text-sm text-gray-500">No IP blocks have been created.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="flex justify-end gap-3">
+        <a href="/admin/users" class="bg-gray-200 text-gray-800 rounded px-4 py-2 hover:bg-gray-300">Cancel</a>
+        <button type="submit" class="bg-gray-900 text-white rounded px-4 py-2">Save Changes</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

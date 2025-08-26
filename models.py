@@ -1,9 +1,16 @@
 # models.py
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, UniqueConstraint
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, DateTime, Enum, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from enum import Enum as PyEnum
 from database import Base
+
+
+# Association Table for User <-> IPBlock
+user_ip_block_association = Table('user_ip_block_association', Base.metadata,
+    Column('user_id', ForeignKey('users.id'), primary_key=True),
+    Column('ip_block_id', ForeignKey('ip_blocks.id'), primary_key=True)
+)
 
 
 class User(Base):
@@ -15,6 +22,12 @@ class User(Base):
     level = Column(Integer, default=1)  # 1=view, 2=allocate, 3=admin
     created_at = Column(DateTime, default=datetime.utcnow)
     is_admin = Column(Boolean, default=False)
+
+    allowed_blocks = relationship(
+        "IPBlock",
+        secondary=user_ip_block_association,
+        back_populates="allowed_users"
+    )
 
 
 class VLAN(Base):
@@ -38,6 +51,11 @@ class IPBlock(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     subnets = relationship("Subnet", back_populates="block", cascade="all, delete-orphan")
+    allowed_users = relationship(
+        "User",
+        secondary=user_ip_block_association,
+        back_populates="allowed_blocks"
+    )
 
 
 class SubnetStatus(PyEnum):

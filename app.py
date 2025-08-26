@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 import os, re, ipaddress, io, csv
 from starlette.responses import StreamingResponse
 
@@ -60,7 +60,9 @@ def home(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
     # Fetch all allocated subnets for the main table
-    allocations = db.query(models.Subnet).order_by(models.Subnet.created_at.desc()).all()
+    allocations = db.query(models.Subnet).filter(
+        models.Subnet.status != models.SubnetStatus.deactivated
+    ).order_by(models.Subnet.created_at.desc()).all()
 
     # Calculate utilization stats for each parent block
     blocks = db.query(models.IPBlock).all()
@@ -152,6 +154,99 @@ def admin_create_user(request: Request, username: str = Form(...), password: str
     return RedirectResponse("/admin/users", status_code=303)
 
 
+@app.get("/admin/users/{user_id}/change-password", response_class=HTMLResponse)
+@admin_required
+def change_password_page(request: Request, user_id: int, db: Session = Depends(get_db)):
+    user_to_edit = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user_to_edit:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return templates.TemplateResponse(
+        "change_password.html",
+        {"request": request, "user": get_current_user(request, db), "user_to_edit": user_to_edit, "error": None}
+    )
+
+@app.post("/admin/users/{user_id}/change-password")
+@admin_required
+def change_password_action(
+    request: Request,
+    user_id: int,
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user_to_edit = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user_to_edit:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if new_password != confirm_password:
+        return templates.TemplateResponse(
+            "change_password.html",
+            {
+                "request": request,
+                "user": get_current_user(request, db),
+                "user_to_edit": user_to_edit,
+                "error": "Passwords do not match."
+            },
+            status_code=400
+        )
+
+    user_to_edit.password_hash = hash_password(new_password)
+    db.commit()
+
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.get("/admin/users/{user_id}/edit", response_class=HTMLResponse)
+@admin_required
+def edit_user_page(request: Request, user_id: int, db: Session = Depends(get_db)):
+    user_to_edit = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user_to_edit:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    all_blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    user_block_ids = {block.id for block in user_to_edit.allowed_blocks}
+
+    return templates.TemplateResponse(
+        "edit_user.html",
+        {
+            "request": request,
+            "user": get_current_user(request, db),
+            "user_to_edit": user_to_edit,
+            "all_blocks": all_blocks,
+            "user_block_ids": user_block_ids,
+        }
+    )
+
+@app.post("/admin/users/{user_id}/edit")
+@admin_required
+def edit_user_action(
+    request: Request,
+    user_id: int,
+    level: int = Form(...),
+    is_admin: bool = Form(False),
+    allowed_blocks: List[int] = Form([]),
+    db: Session = Depends(get_db),
+):
+    user_to_edit = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user_to_edit:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_to_edit.level = level
+    user_to_edit.is_admin = is_admin
+
+    # Update allowed blocks
+    user_to_edit.allowed_blocks.clear()
+    if allowed_blocks:
+        blocks = db.query(models.IPBlock).filter(models.IPBlock.id.in_(allowed_blocks)).all()
+        for block in blocks:
+            user_to_edit.allowed_blocks.append(block)
+
+    db.commit()
+
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
 @app.get("/admin/blocks")
 def admin_blocks(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
@@ -231,11 +326,18 @@ def search_vlan(request: Request, query: Optional[str] = None, db: Session = Dep
 
     results = []
     if query:
-        results = db.query(models.VLAN).filter(models.VLAN.vlan_id.contains(query)).all()
+        search_query = query.strip()
+        # Search by name OR by ID if the query is a valid integer
+        from sqlalchemy import or_
+        q_filter = [models.VLAN.name.contains(search_query)]
+        if search_query.isdigit():
+            q_filter.append(models.VLAN.vlan_id == int(search_query))
+
+        results = db.query(models.VLAN).filter(or_(*q_filter)).all()
 
     return templates.TemplateResponse(
         "search_vlan.html",
-        {"request": request, "user": user, "results": results}
+        {"request": request, "user": user, "results": results, "query": query}
     )
 
 @app.get("/dashboard/search_ip")
@@ -315,8 +417,16 @@ def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=302)
 
     # Fetch data needed for the form
-    allocations = db.query(models.Subnet).order_by(models.Subnet.created_at.desc()).all()
-    blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    allocations = db.query(models.Subnet).filter(
+        models.Subnet.status != models.SubnetStatus.deactivated
+    ).order_by(models.Subnet.created_at.desc()).all()
+
+    if user.is_admin:
+        blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    else:
+        blocks = user.allowed_blocks
+        blocks.sort(key=lambda x: ipaddress.ip_network(x.cidr))
+
     vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
 
     return templates.TemplateResponse(
