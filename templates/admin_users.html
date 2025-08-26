@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+{% block title %}IP DB - Admin Users{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Admin: Users</h1>
+
+<form method="post" action="/admin/users/create" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mb-8">
+  <div>
+    <label class="text-sm block mb-1">Username</label>
+    <input type="text" name="username" class="w-full border rounded px-3 py-2" required>
+  </div>
+  <div>
+    <label class="text-sm block mb-1">Password</label>
+    <input type="password" name="password" class="w-full border rounded px-3 py-2" required>
+  </div>
+  <div>
+    <label class="text-sm block mb-1">Level</label>
+    <select name="level" class="w-full border rounded px-3 py-2">
+      <option value="1">1 - View Only</option>
+      <option value="2">2 - Allocate</option>
+      <option value="3">3 - Admin</option>
+    </select>
+  </div>
+  <div class="flex items-center gap-2">
+    <input type="checkbox" id="is_admin" name="is_admin" value="true" class="h-4 w-4">
+    <label for="is_admin" class="text-sm">Is Admin?</label>
+  </div>
+  <div class="md:col-span-4 flex justify-end">
+    <button class="bg-gray-900 text-white rounded px-4 py-2">Create User</button>
+  </div>
+</form>
+
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="text-left p-3 text-sm font-semibold">Username</th>
+        <th class="text-left p-3 text-sm font-semibold">Level</th>
+        <th class="text-left p-3 text-sm font-semibold">Admin</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="border-t">
+        <td class="p-3">{{ u.username }}</td>
+        <td class="p-3">L{{ u.level }}</td>
+        <td class="p-3">{% if u.is_admin %}Yes{% else %}No{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% if not users %}
+      <tr><td colspan="3" class="p-6 text-center text-gray-500">No users yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}IP DB{% endblock %}</title>
+  <!-- Tailwind via CDN for starter simplicity -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <nav class="bg-gray-900 text-white px-6 py-3 flex justify-between items-center">
+    <a href="/" class="font-semibold">IP DB</a>
+    <div class="flex gap-4 items-center">
+      {% if user %}
+        <span class="text-sm opacity-80">Logged in as <strong>{{ user.username }}</strong> (L{{ user.level }}{% if user.is_admin %}, Admin{% endif %})</span>
+        {% if user.is_admin %}
+          <a href="/admin/users" class="text-sm underline hover:no-underline">Admin</a>
+        {% endif %}
+        <a href="/logout" class="bg-white text-gray-900 rounded px-3 py-1 text-sm">Logout</a>
+      {% endif %}
+    </div>
+  </nav>
+  <main class="p-6 max-w-5xl mx-auto">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
