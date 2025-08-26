@@ -29,3 +29,5 @@ env.bak/
 # OS
 .DS_Store
 Thumbs.db
+configs/
+static/logo-images.jpeg
