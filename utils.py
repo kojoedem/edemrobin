@@ -3,61 +3,64 @@ import re
 
 def parse_config(config_text: str):
     """
-    Extract IPs & group into blocks from Cisco-style config.
-    Returns a tuple of:
-    - a list of dictionaries, each representing an IP block with usage stats.
-    - a list of IPs found in the config.
-    - a list of malformed/invalid IP entries found.
+    Parses a Cisco-style configuration line by line to extract detailed
+    interface information, including sub-interface VLANs and descriptions.
+
+    Returns a list of dictionaries, where each dictionary represents an
+    interface with an IP address.
     """
-    # Matches: ip address 192.168.1.1 255.255.255.0.
-    # Allows almost any non-whitespace characters for IP and mask,
-    # so we can catch and report invalid formats.
-    ip_matches = re.findall(r"ip address ([^\s]+) ([^\s]+)", config_text)
+    lines = config_text.splitlines()
+    interfaces = {}
+    current_interface = None
 
-    ip_blocks = {}
-    used_ips = []
-    invalid_entries = []
+    for line in lines:
+        # Normalize the line
+        line = line.strip()
 
-    for ip_str, mask_str in ip_matches:
-        try:
-            # The ipaddress module is strict and will raise ValueError on invalid input.
-            network = ipaddress.ip_network(f"{ip_str}/{mask_str}", strict=False)
-
-            # Use the network's CIDR string as the key
-            block_cidr = network.with_prefixlen
-
-            if block_cidr not in ip_blocks:
-                ip_blocks[block_cidr] = {
-                    "used_ips": set(),
-                    "total_count": network.num_addresses,
-                }
-
-            # The IP address from the config line is a used IP.
-            ip_blocks[block_cidr]["used_ips"].add(ip_str)
-            used_ips.append(ip_str)
-
-        except ValueError:
-            # Catches invalid IPs (e.g., 192.168,.1.0) or invalid masks.
-            invalid_entries.append(f"ip address {ip_str} {mask_str}")
+        # Reset context if line is empty or a comment
+        if not line or line.startswith('!'):
+            if not line.strip().startswith('!'): # Don't reset context on comments within an interface block
+                current_interface = None
             continue
 
-    # Convert the dictionary of blocks into a list of dictionaries with more stats
-    processed_blocks = []
-    for cidr, block_data in ip_blocks.items():
-        used_count = len(block_data["used_ips"])
-        total_count = block_data["total_count"]
-        available_count = total_count - used_count
+        # Detect the start of a new interface block
+        if line.lower().startswith('interface '):
+            current_interface = line.split(' ', 1)[1]
+            interfaces[current_interface] = {
+                "name": current_interface,
+                "description": None,
+                "ip_address": None,
+                "subnet_mask": None,
+                "vlan_id": None
+            }
+            # Try to parse VLAN ID from sub-interface name (e.g., Gig0/0.500)
+            if '.' in current_interface:
+                try:
+                    vlan_id_str = current_interface.split('.')[-1]
+                    interfaces[current_interface]['vlan_id'] = int(vlan_id_str)
+                except (ValueError, IndexError):
+                    pass  # Not a valid VLAN sub-interface
+            continue
 
-        processed_blocks.append({
-            "block_cidr": cidr,
-            "used_ips": sorted(list(block_data["used_ips"])),
-            "used_count": used_count,
-            "total_count": total_count,
-            "available_count": available_count,
-        })
+        # If we are inside an interface block, parse its attributes
+        if current_interface and interfaces.get(current_interface):
+            # Parse description
+            if line.lower().startswith('description '):
+                # Get everything after "description "
+                interfaces[current_interface]['description'] = line.split(' ', 1)[1]
 
-    # Sort blocks for consistent output
-    if processed_blocks:
-        processed_blocks.sort(key=lambda x: ipaddress.ip_network(x['block_cidr']))
+            # Parse IP address
+            elif line.lower().startswith('ip address '):
+                parts = line.split()
+                # Expecting "ip address <ip> <netmask>"
+                if len(parts) >= 4:
+                    # This will capture the primary IP. A more complex parser could handle secondary IPs.
+                    if not interfaces[current_interface]['ip_address']:
+                        interfaces[current_interface]['ip_address'] = parts[2]
+                        interfaces[current_interface]['subnet_mask'] = parts[3]
 
-    return processed_blocks, used_ips, invalid_entries
+    # Filter out interfaces that did not have an IP address
+    # and return a clean list of dictionaries.
+    results = [data for data in interfaces.values() if data['ip_address']]
+
+    return results

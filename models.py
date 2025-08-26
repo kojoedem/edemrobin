@@ -35,7 +35,7 @@ class VLAN(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     vlan_id = Column(Integer, unique=True, nullable=False)
-    name = Column(String, nullable=False)
+    name = Column(String, unique=True, nullable=False)
     site = Column(String, nullable=True)
     created_by = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -72,7 +72,7 @@ class Subnet(Base):
     cidr = Column(String, index=True, nullable=False)
     status = Column(Enum(SubnetStatus), default=SubnetStatus.imported, nullable=False)
     vlan_id = Column(Integer, ForeignKey("vlans.id"), nullable=True)
-    description = Column(String, nullable=True)
+    description = Column(String, nullable=False)
     created_by = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

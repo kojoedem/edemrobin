@@ -11,7 +11,7 @@ def allocate_subnet(
     user: User,
     subnet_size: int,
     vlan_id: Optional[int] = None,
-    description: Optional[str] = None,
+    description: str,
 ):
     """
     Finds the next available subnet of a given size within a parent block.

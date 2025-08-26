@@ -65,7 +65,13 @@ def home(request: Request, db: Session = Depends(get_db)):
     ).order_by(models.Subnet.created_at.desc()).all()
 
     # Calculate utilization stats for each parent block
-    blocks = db.query(models.IPBlock).all()
+    if user.is_admin:
+        blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    else:
+        blocks = user.allowed_blocks
+        # The relationship is a list, so we can sort it
+        blocks.sort(key=lambda x: ipaddress.ip_network(x.cidr))
+
     block_stats = []
     for block in blocks:
         parent_network = ipaddress.ip_network(block.cidr)
@@ -101,10 +107,24 @@ def allocate_ip_action(
     block_id: int = Form(...),
     subnet_size: int = Form(...),
     vlan_id: Optional[int] = Form(None),
-    description: Optional[str] = Form(None),
+    description: str = Form(...),
+    description_format: str = Form("uppercase"),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
+
+    # Apply description formatting
+    if description_format == "uppercase":
+        final_description = description.upper()
+    elif description_format == "lowercase":
+        final_description = description.lower()
+    elif description_format == "hyphen":
+        final_description = description.replace(" ", "-")
+    elif description_format == "underscore":
+        final_description = description.replace(" ", "_")
+    else:
+        final_description = description
+
     try:
         new_subnet = allocate_subnet(
             db,
@@ -112,7 +132,7 @@ def allocate_ip_action(
             user=user,
             subnet_size=subnet_size,
             vlan_id=vlan_id,
-            description=description
+            description=final_description
         )
     except HTTPException as e:
         # You can pass the error message to the template
@@ -535,89 +555,98 @@ def reactivate_allocation_action(
 def export_config_csv(
     request: Request,
     filename: str,
-    view: str = "detailed",             # "detailed" or "summary"
     db: Session = Depends(get_db),
 ):
-    # require login
     user = get_current_user(request, db)
-
-    # sanitize + locate file
     safe_name = os.path.basename(filename)
     path = os.path.join("configs", safe_name)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Uploaded file not found")
 
-    # read + parse
     with open(path, "r") as f:
         config_text = f.read()
+    interfaces = parse_config(config_text)
 
-    processed_blocks, _, _ = parse_config(config_text)
-
-    # build CSV
     buf = io.StringIO()
     w = csv.writer(buf)
-
-    if view == "summary":
-        # one row per block
-        w.writerow(["block_cidr", "used_ip_count", "available_ip_count", "total_ip_count"])
-        for block in processed_blocks:
-            w.writerow([block["block_cidr"], block["used_count"], block["available_count"], block["total_count"]])
-        out_name = f"{os.path.splitext(safe_name)[0]}_blocks_summary.csv"
-    else:
-        # one row per IP
-        w.writerow(["block_cidr", "ip"])
-        for block in processed_blocks:
-            for ip in block["used_ips"]:
-                w.writerow([block["block_cidr"], ip])
-        out_name = f"{os.path.splitext(safe_name)[0]}_ip_list.csv"
-
+    w.writerow(["interface_name", "ip_address", "subnet_mask", "description", "vlan_id"])
+    for iface in interfaces:
+        w.writerow([iface.get(k) for k in ["name", "ip_address", "subnet_mask", "description", "vlan_id"]])
+    out_name = f"{os.path.splitext(safe_name)[0]}_interfaces.csv"
     buf.seek(0)
     headers = {"Content-Disposition": f'attachment; filename="{out_name}"'}
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
 
+@app.post("/dashboard/upload_config/save")
+@admin_required
+def save_config_to_db(request: Request, filename: str = Form(...), db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    safe_name = os.path.basename(filename)
+    path = os.path.join("configs", safe_name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Uploaded file not found")
+
+    with open(path, "r") as f:
+        config_text = f.read()
+    interfaces = parse_config(config_text)
+
+    for iface in interfaces:
+        try:
+            # Use /32 for each IP to mark it as used
+            network = ipaddress.ip_network(f"{iface['ip_address']}/32")
+            # The parent block is derived from the IP and its actual mask
+            parent_network = ipaddress.ip_network(f"{iface['ip_address']}/{iface['subnet_mask']}", strict=False)
+        except (ValueError, TypeError):
+            continue
+
+        block = crud.get_or_create_block(db, str(parent_network), created_by=user.username)
+        vlan = crud.get_vlan_by_id(db, iface['vlan_id']) if iface.get('vlan_id') else None
+        description = iface['description'] or f"Imported from {iface['name']}"
+
+        existing_subnet = db.query(models.Subnet).filter(models.Subnet.cidr == str(network)).first()
+        if not existing_subnet:
+            crud.create_or_get_subnet(
+                db=db,
+                cidr=str(network),
+                block=block,
+                status=models.SubnetStatus.imported,
+                created_by=user.username,
+                vlan_id=vlan.id if vlan else None,
+                description=description,
+            )
+
+    return RedirectResponse(url="/", status_code=303)
+
 
 from fastapi import File, UploadFile
 
-# Make sure configs folder exists
 os.makedirs("configs", exist_ok=True)
 
-@app.get("/dashboard/upload_config")
-def upload_config(request: Request, db: Session = Depends(get_db)):
+@app.get("/dashboard/upload_config", response_class=HTMLResponse)
+@admin_required
+def upload_config_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})
 
 @app.post("/dashboard/upload_config")
-async def upload_config_post(
-    request: Request,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
+@admin_required
+async def upload_config_action(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    # Read uploaded file
     content = await file.read()
     config_text = content.decode("utf-8")
 
-    # Save to configs folder
     filepath = f"configs/{file.filename}"
     with open(filepath, "w") as f:
         f.write(config_text)
 
-    # Parse config
-    processed_blocks, used_ips, invalid_entries = parse_config(config_text)
+    interfaces = parse_config(config_text)
 
     return templates.TemplateResponse(
         "upload_result.html",
         {
             "request": request,
             "user": user,
-            "processed_blocks": processed_blocks,
-            "used_ips": used_ips,
-            "invalid_entries": invalid_entries,
+            "interfaces": interfaces,
             "filename": file.filename,
         }
     )

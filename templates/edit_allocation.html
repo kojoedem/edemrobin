@@ -1,21 +1,24 @@
 {% extends "layout.html" %}
 
-{% block title %}Edit Allocation - {{ subnet.cidr }}{% endblock %}
+{% block title %}Edit Allocation - {{ subnet.cidr }} - EDEMROBIN{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Edit Allocation: {{ subnet.cidr }}</h1>
+<div class="mb-6 border-b border-slate-200 pb-4">
+    <h1 class="text-2xl font-bold text-slate-700">Edit Allocation: <span class="font-mono">{{ subnet.cidr }}</span></h1>
+    <p class="text-slate-500">Update the details for this subnet.</p>
+</div>
 
-<div class="bg-white rounded-xl shadow p-4">
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 max-w-2xl mx-auto">
   <form method="post" action="/dashboard/allocations/{{ subnet.id }}/edit" class="space-y-4">
 
     <div>
-      <label for="description" class="text-sm font-medium block mb-1">Description</label>
-      <input type="text" name="description" id="description" value="{{ subnet.description or '' }}" class="w-full border rounded px-3 py-2" placeholder="e.g. Office network for new floor">
+      <label for="description" class="text-sm font-medium text-slate-600 block mb-1">Description</label>
+      <input type="text" name="description" id="description" value="{{ subnet.description or '' }}" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
     </div>
 
     <div>
-      <label for="vlan_id" class="text-sm font-medium block mb-1">VLAN (optional)</label>
-      <select name="vlan_id" id="vlan_id" class="w-full border rounded px-3 py-2">
+      <label for="vlan_id" class="text-sm font-medium text-slate-600 block mb-1">VLAN (optional)</label>
+      <select name="vlan_id" id="vlan_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
         <option value="">-- No VLAN --</option>
         {% for vlan in vlans %}
           <option value="{{ vlan.id }}" {% if subnet.vlan_id == vlan.id %}selected{% endif %}>
@@ -25,9 +28,9 @@
       </select>
     </div>
 
-    <div class="flex justify-end gap-3">
-        <a href="/" class="bg-gray-200 text-gray-800 rounded px-4 py-2 hover:bg-gray-300">Cancel</a>
-        <button type="submit" class="bg-gray-900 text-white rounded px-4 py-2">Save Changes</button>
+    <div class="flex justify-end gap-3 pt-4">
+        <a href="/" class="bg-slate-200 text-slate-800 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-300 transition">Cancel</a>
+        <button type="submit" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Save Changes</button>
     </div>
   </form>
 </div>
