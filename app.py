@@ -56,38 +56,46 @@ def bootstrap_admin():
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/")
-def home(request: Request, db: Session = Depends(get_db)):
+def home(request: Request, block_id: Optional[int] = None, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
-    # Fetch all allocated subnets for the main table
-    allocations = db.query(models.Subnet).filter(
-        models.Subnet.status != models.SubnetStatus.deactivated
-    ).order_by(models.Subnet.created_at.desc()).all()
-
-    # Calculate utilization stats for each parent block
+    # Get blocks this user is allowed to see for the stats cards
     if user.is_admin:
-        blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+        blocks_for_stats = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
     else:
-        blocks = user.allowed_blocks
-        # The relationship is a list, so we can sort it
-        blocks.sort(key=lambda x: ipaddress.ip_network(x.cidr))
+        blocks_for_stats = user.allowed_blocks
+        blocks_for_stats.sort(key=lambda x: ipaddress.ip_network(x.cidr))
 
     block_stats = []
-    for block in blocks:
+    for block in blocks_for_stats:
         parent_network = ipaddress.ip_network(block.cidr)
         total_ips = parent_network.num_addresses
 
         used_ips = 0
-        for subnet in block.subnets:
+        # Filter subnets by status to not include 'imported' or 'inactive' as 'used' in the main stat
+        active_subnets = [s for s in block.subnets if s.status == models.SubnetStatus.allocated]
+        for subnet in active_subnets:
             used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
         block_stats.append({
             "block": block,
             "total_ips": total_ips,
             "used_ips": used_ips,
-            "available_ips": total_ips - used_ips,
             "utilization": (used_ips / total_ips) * 100 if total_ips > 0 else 0,
         })
+
+    # Fetch allocations for a specific block if block_id is provided
+    allocations = []
+    selected_block = None
+    if block_id:
+        selected_block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
+        if selected_block:
+            # Check if the user has permission to view this block
+            if user.is_admin or selected_block in user.allowed_blocks:
+                allocations = db.query(models.Subnet).filter(
+                    models.Subnet.block_id == block_id,
+                    models.Subnet.status != models.SubnetStatus.deactivated
+                ).order_by(models.Subnet.created_at.desc()).all()
 
     return templates.TemplateResponse(
         "index.html",
@@ -96,6 +104,7 @@ def home(request: Request, db: Session = Depends(get_db)):
             "user": user,
             "allocations": allocations,
             "block_stats": block_stats,
+            "selected_block": selected_block,
         }
     )
 
@@ -306,6 +315,41 @@ def create_block(
     return RedirectResponse(url="/admin/blocks", status_code=303)
 
 
+@app.get("/admin/blocks/{block_id}/edit", response_class=HTMLResponse)
+@admin_required
+def edit_block_page(request: Request, block_id: int, db: Session = Depends(get_db)):
+    block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="IP Block not found")
+    return templates.TemplateResponse("edit_block.html", {"request": request, "user": get_current_user(request, db), "block": block})
+
+@app.post("/admin/blocks/{block_id}/edit")
+@admin_required
+def edit_block_action(request: Request, block_id: int, description: str = Form(""), db: Session = Depends(get_db)):
+    block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="IP Block not found")
+    block.description = description
+    db.commit()
+    return RedirectResponse(url="/admin/blocks", status_code=303)
+
+@app.post("/admin/blocks/{block_id}/delete")
+@admin_required
+def delete_block_action(request: Request, block_id: int, db: Session = Depends(get_db)):
+    block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="IP Block not found")
+
+    if block.subnets:
+        # Prevent deletion if there are subnets associated with this block
+        # You might want to handle this more gracefully with a message to the user
+        raise HTTPException(status_code=400, detail="Cannot delete a block that has subnets allocated from it.")
+
+    db.delete(block)
+    db.commit()
+    return RedirectResponse(url="/admin/blocks", status_code=303)
+
+
 @app.get("/admin/settings", response_class=HTMLResponse)
 @admin_required
 def settings_page(request: Request, db: Session = Depends(get_db)):
@@ -382,6 +426,12 @@ def add_vlan_post(
     if not user:
         return RedirectResponse("/login", status_code=302)
 
+    # Check for uniqueness
+    if db.query(models.VLAN).filter(models.VLAN.vlan_id == vlan_id).first():
+        raise HTTPException(status_code=400, detail=f"VLAN ID {vlan_id} already exists.")
+    if db.query(models.VLAN).filter(models.VLAN.name == name).first():
+        raise HTTPException(status_code=400, detail=f"VLAN name '{name}' already exists.")
+
     vlan = models.VLAN(
         vlan_id=vlan_id,
         name=name,
@@ -391,6 +441,45 @@ def add_vlan_post(
     db.add(vlan)
     db.commit()
 
+    return RedirectResponse(url="/dashboard/add_vlan", status_code=303)
+
+@app.get("/dashboard/vlans/{vlan_id}/edit", response_class=HTMLResponse)
+@admin_required
+def edit_vlan_page(request: Request, vlan_id: int, db: Session = Depends(get_db)):
+    vlan = db.query(models.VLAN).filter(models.VLAN.id == vlan_id).first()
+    if not vlan:
+        raise HTTPException(status_code=404, detail="VLAN not found")
+    return templates.TemplateResponse("edit_vlan.html", {"request": request, "user": get_current_user(request, db), "vlan": vlan})
+
+@app.post("/dashboard/vlans/{vlan_id}/edit")
+@admin_required
+def edit_vlan_action(request: Request, vlan_id: int, name: str = Form(...), db: Session = Depends(get_db)):
+    vlan = db.query(models.VLAN).filter(models.VLAN.id == vlan_id).first()
+    if not vlan:
+        raise HTTPException(status_code=404, detail="VLAN not found")
+
+    # Check for uniqueness
+    existing_vlan = db.query(models.VLAN).filter(models.VLAN.name == name).first()
+    if existing_vlan and existing_vlan.id != vlan_id:
+        raise HTTPException(status_code=400, detail=f"VLAN name '{name}' already exists.")
+
+    vlan.name = name
+    db.commit()
+    return RedirectResponse(url="/dashboard/add_vlan", status_code=303)
+
+@app.post("/dashboard/vlans/{vlan_id}/delete")
+@admin_required
+def delete_vlan_action(request: Request, vlan_id: int, db: Session = Depends(get_db)):
+    vlan = db.query(models.VLAN).filter(models.VLAN.id == vlan_id).first()
+    if not vlan:
+        raise HTTPException(status_code=404, detail="VLAN not found")
+
+    # Check if VLAN is in use
+    if db.query(models.Subnet).filter(models.Subnet.vlan_id == vlan.id).first():
+        raise HTTPException(status_code=400, detail="Cannot delete a VLAN that is currently in use by a subnet.")
+
+    db.delete(vlan)
+    db.commit()
     return RedirectResponse(url="/dashboard/add_vlan", status_code=303)
 @app.get("/dashboard/search_vlan")
 def search_vlan(request: Request, query: Optional[str] = None, db: Session = Depends(get_db)):
@@ -427,22 +516,19 @@ def search_ip(request: Request, query: Optional[str] = None, db: Session = Depen
 
     if query:
         try:
-            # Try to parse the query as an IP address
             searched_ip = ipaddress.ip_address(query)
             searched_ip_str = str(searched_ip)
             search_type = 'ip'
 
             all_subnets = db.query(models.Subnet).all()
-            found_subnets = []
-            for subnet in all_subnets:
-                if searched_ip in ipaddress.ip_network(subnet.cidr):
-                    found_subnets.append(subnet)
+            found_subnets = [s for s in all_subnets if searched_ip in ipaddress.ip_network(s.cidr)]
 
-            if found_subnets:
-                for subnet in found_subnets:
-                    network = ipaddress.ip_network(subnet.cidr)
-                    usable_hosts = list(network.hosts())
-                    results.append({
+            for subnet in found_subnets:
+                network = ipaddress.ip_network(subnet.cidr)
+                usable_hosts = list(network.hosts())
+                results.append({
+                    "type": "subnet",
+                    "data": {
                         "subnet": subnet,
                         "network_address": network.network_address,
                         "broadcast_address": network.broadcast_address,
@@ -450,21 +536,24 @@ def search_ip(request: Request, query: Optional[str] = None, db: Session = Depen
                         "usable_ips_count": len(usable_hosts),
                         "usable_range": f"{usable_hosts[0]} - {usable_hosts[-1]}" if usable_hosts else "N/A",
                         "all_usable_ips": usable_hosts,
-                    })
+                    }
+                })
 
         except ValueError:
-            # If it's not a valid IP, treat it as a text search
             search_type = 'text'
             from sqlalchemy import or_
+
             found_subnets = db.query(models.Subnet).filter(
-                or_(
-                    models.Subnet.cidr.contains(query),
-                    models.Subnet.description.contains(query)
-                )
+                or_(models.Subnet.cidr.contains(query), models.Subnet.description.contains(query))
             ).all()
-            if found_subnets:
-                for subnet in found_subnets:
-                    results.append({"subnet": subnet}) # Simpler result for text search
+            for subnet in found_subnets:
+                results.append({"type": "subnet", "data": {"subnet": subnet}})
+
+            found_blocks = db.query(models.IPBlock).filter(
+                or_(models.IPBlock.cidr.contains(query), models.IPBlock.description.contains(query))
+            ).all()
+            for block in found_blocks:
+                results.append({"type": "block", "data": block})
 
         if not results:
             error = f"No results found for '{query}'."
@@ -605,6 +694,23 @@ def reactivate_allocation_action(
     return RedirectResponse(url="/dashboard/churned", status_code=303)
 
 
+@app.post("/dashboard/allocations/{subnet_id}/activate")
+@level_required(2)
+def activate_allocation_action(
+    request: Request,
+    subnet_id: int,
+    db: Session = Depends(get_db),
+):
+    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    subnet.status = models.SubnetStatus.allocated
+    db.commit()
+
+    return RedirectResponse(url="/", status_code=303)
+
+
 @app.get("/dashboard/upload_config/export")
 def export_config_csv(
     request: Request,
@@ -654,14 +760,30 @@ def save_config_to_db(request: Request, filename: str = Form(...), db: Session =
             continue
 
         block = crud.get_or_create_block(db, str(parent_network), created_by=user.username)
-        vlan = crud.get_vlan_by_id(db, iface['vlan_id']) if iface.get('vlan_id') else None
-        description = iface['description'] or f"Imported from {iface['name']}"
 
-        existing_subnet = db.query(models.Subnet).filter(models.Subnet.cidr == str(network)).first()
+        vlan = None
+        if iface.get('vlan_id'):
+            vlan = crud.get_vlan_by_id(db, iface['vlan_id'])
+            if not vlan:
+                # Create the VLAN if it doesn't exist, using the interface name
+                vlan_name = iface.get('name', f"VLAN_{iface['vlan_id']}")
+                # To prevent violating unique name constraint, check if name exists
+                existing_vlan_by_name = db.query(models.VLAN).filter(models.VLAN.name == vlan_name).first()
+                if not existing_vlan_by_name:
+                    vlan = crud.create_vlan(db, vlan_id=iface['vlan_id'], name=vlan_name, created_by=user.username)
+                else:
+                    vlan = existing_vlan_by_name
+
+        description = iface['description'] or f"Imported from {iface.get('name', 'config')}"
+
+        # Use a /32 for the subnet to represent a single used IP
+        subnet_cidr = f"{iface['ip_address']}/32"
+
+        existing_subnet = db.query(models.Subnet).filter(models.Subnet.cidr == subnet_cidr).first()
         if not existing_subnet:
             crud.create_or_get_subnet(
                 db=db,
-                cidr=str(network),
+                cidr=subnet_cidr,
                 block=block,
                 status=models.SubnetStatus.imported,
                 created_by=user.username,
