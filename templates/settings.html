@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block title %}Settings - EDEMROBIN{% endblock %}
+
+{% block content %}
+<div class="mb-6 border-b border-slate-200 pb-4">
+  <h1 class="text-2xl font-bold text-slate-700">Settings</h1>
+  <p class="text-slate-500">Manage application-wide settings and branding.</p>
+</div>
+
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 max-w-2xl mx-auto">
+  <form method="post" action="/admin/settings" enctype="multipart/form-data" class="space-y-6">
+
+    <div>
+      <label for="company_name" class="text-sm font-medium text-slate-600 block mb-1">Company Name</label>
+      <input type="text" name="company_name" id="company_name" value="{{ company_name or '' }}" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+    </div>
+
+    <div>
+      <label for="logo" class="text-sm font-medium text-slate-600 block mb-1">Company Logo</label>
+      {% if logo_path %}
+        <div class="mb-2">
+            <img src="/{{ logo_path }}" alt="Current Logo" class="h-16">
+            <p class="text-xs text-slate-500 mt-1">Current Logo</p>
+        </div>
+      {% endif %}
+      <input type="file" name="logo" id="logo" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+      <p class="text-xs text-slate-500 mt-1">Upload a new logo to replace the current one. (Optional)</p>
+    </div>
+
+    <div class="flex justify-end gap-3 pt-4">
+        <button type="submit" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Save Settings</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
