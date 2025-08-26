@@ -331,6 +331,96 @@ def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/dashboard/allocations/{subnet_id}/edit", response_class=HTMLResponse)
+@admin_required
+def edit_allocation_page(request: Request, subnet_id: int, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
+
+    return templates.TemplateResponse(
+        "edit_allocation.html",
+        {
+            "request": request,
+            "user": user,
+            "subnet": subnet,
+            "vlans": vlans,
+        }
+    )
+
+@app.post("/dashboard/allocations/{subnet_id}/edit")
+@admin_required
+def edit_allocation_action(
+    request: Request,
+    subnet_id: int,
+    description: str = Form(...),
+    vlan_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+):
+    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    subnet.description = description
+    subnet.vlan_id = vlan_id
+    db.commit()
+
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/dashboard/allocations/{subnet_id}/deactivate")
+@admin_required
+def deactivate_allocation_action(
+    request: Request,
+    subnet_id: int,
+    db: Session = Depends(get_db),
+):
+    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    subnet.status = models.SubnetStatus.deactivated
+    db.commit()
+
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.get("/dashboard/churned", response_class=HTMLResponse)
+@admin_required
+def churned_allocations_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    churned_allocations = db.query(models.Subnet).filter(
+        models.Subnet.status == models.SubnetStatus.deactivated
+    ).order_by(models.Subnet.created_at.desc()).all()
+
+    return templates.TemplateResponse(
+        "churned_allocations.html",
+        {
+            "request": request,
+            "user": user,
+            "allocations": churned_allocations,
+        }
+    )
+
+@app.post("/dashboard/allocations/{subnet_id}/reactivate")
+@admin_required
+def reactivate_allocation_action(
+    request: Request,
+    subnet_id: int,
+    db: Session = Depends(get_db),
+):
+    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
+
+    subnet.status = models.SubnetStatus.allocated
+    db.commit()
+
+    return RedirectResponse(url="/dashboard/churned", status_code=303)
+
+
 @app.get("/dashboard/upload_config/export")
 def export_config_csv(
     request: Request,
