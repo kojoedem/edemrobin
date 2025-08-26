@@ -69,7 +69,13 @@
       <tr class="border-t hover:bg-gray-50">
         <td class="p-3 font-mono">{{ alloc.cidr }}</td>
         <td class="p-3 font-mono text-sm text-gray-600">{{ alloc.block.cidr }}</td>
-        <td class="p-3">{{ alloc.vlan.vlan_id if alloc.vlan else "-" }}</td>
+        <td class="p-3">
+          {% if alloc.vlan %}
+            {{ alloc.vlan.vlan_id }} - {{ alloc.vlan.name }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
         <td class="p-3">{{ alloc.description or "-" }}</td>
         <td class="p-3">{{ alloc.created_by or "-" }}</td>
         <td class="p-3 text-sm text-gray-600">{{ alloc.created_at.strftime('%Y-%m-%d %H:%M') if alloc.created_at else '-' }}</td>

@@ -36,14 +36,19 @@
         <th class="text-left p-3 text-sm font-semibold">Username</th>
         <th class="text-left p-3 text-sm font-semibold">Level</th>
         <th class="text-left p-3 text-sm font-semibold">Admin</th>
+        <th class="text-left p-3 text-sm font-semibold">Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for u in users %}
-      <tr class="border-t">
+      <tr class="border-t hover:bg-gray-50">
         <td class="p-3">{{ u.username }}</td>
         <td class="p-3">L{{ u.level }}</td>
         <td class="p-3">{% if u.is_admin %}Yes{% else %}No{% endif %}</td>
+        <td class="p-3 space-x-2">
+          <a href="/admin/users/{{ u.id }}/edit" class="text-blue-600 hover:underline font-semibold">Edit</a>
+          <a href="/admin/users/{{ u.id }}/change-password" class="text-gray-600 hover:underline">Change Password</a>
+        </td>
       </tr>
       {% endfor %}
       {% if not users %}
