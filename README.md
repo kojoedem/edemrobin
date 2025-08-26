@@ -1,4 +1,4 @@
-# IP DB - IP Address Management Tool
+# EDEMROBIN ---》IP Address Management Tool
 
 A small web tool for managing IP addresses, VLANs, and users with role-based access.  
 Built with **FastAPI**, **SQLite**, and **Tailwind CSS**.
