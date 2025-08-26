@@ -103,3 +103,7 @@ Add search functionality for IPs & VLANs
 Add audit logs (track who created/edited what)
 Export IP usage as CSV/Excel
 Add frontend enhancements (Tailwind UI components)
+
+
+# UPDATED LOGIC
+I have updated this phase so it can handle router config upload and csv downlaod.
