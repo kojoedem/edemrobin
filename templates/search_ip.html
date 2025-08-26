@@ -3,48 +3,62 @@
 {% block title %}Search IP - IP DB{% endblock %}
 
 {% block content %}
-  <h2 class="text-2xl font-bold mb-4">🔍 Search IP</h2>
-  
-  <form method="get" action="/dashboard/search_ip" class="space-y-4">
-    <div>
-      <label class="block mb-1 font-semibold">IP Address</label>
-      <input type="text" name="query" placeholder="Enter IP..." 
-             class="border rounded p-2 w-full" />
-    </div>
-    <button type="submit" 
-            class="bg-blue-600 text-white px-4 py-2 rounded">
-      Search
-    </button>
+<h1 class="text-2xl font-semibold mb-4">Search IP Address</h1>
+<div class="bg-white rounded-xl shadow p-4 mb-8">
+  <form method="get" action="/dashboard/search_ip" class="flex items-center gap-3">
+    <input type="text" name="query" value="{{ query or '' }}" class="w-full border rounded px-3 py-2" placeholder="Search for an IP or text..." required>
+    <button class="bg-gray-900 text-white rounded px-4 py-2 whitespace-nowrap">Search</button>
   </form>
+</div>
 
-  {% if results is defined %}
-    <h3 class="text-xl mt-6 mb-2">Results</h3>
-    {% if results %}
-      <table class="min-w-full bg-white border">
-        <thead>
-          <tr class="bg-gray-100">
-            <th class="px-4 py-2 border">Subnet</th>
-            <th class="px-4 py-2 border">VLAN</th>
-            <th class="px-4 py-2 border">Description</th>
-            <th class="px-4 py-2 border">Assigned By</th>
-            <th class="px-4 py-2 border">Created At</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ip in results %}
-          <tr>
-            <td class="border px-4 py-2">{{ ip.subnet }}</td>
-            <td class="border px-4 py-2">{{ ip.vlan }}</td>
-            <td class="border px-4 py-2">{{ ip.description }}</td>
-            <td class="border px-4 py-2">{{ ip.person }}</td>
-            <td class="border px-4 py-2">{{ ip.created_at }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p class="text-gray-600">No IPs found matching your search.</p>
-    {% endif %}
+
+{% if query %}
+  <h2 class="text-xl font-semibold mb-4">Results for "{{ query }}"</h2>
+  
+  {% if error %}
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+      <span class="block sm:inline">{{ error }}</span>
+    </div>
+
+  {% elif results %}
+    {% for result in results %}
+      <div class="bg-white rounded-xl shadow p-4 mb-6">
+        <h3 class="text-lg font-bold text-gray-800">{{ result.subnet.cidr }}</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 text-sm">
+          <div>
+            <p><strong>Description:</strong> {{ result.subnet.description or '-' }}</p>
+            <p><strong>Parent Block:</strong> <a href="#" class="text-blue-600 hover:underline">{{ result.subnet.block.cidr }}</a></p>
+            <p><strong>VLAN:</strong>
+              {% if result.subnet.vlan %}
+                {{ result.subnet.vlan.vlan_id }} - {{ result.subnet.vlan.name }}
+              {% else %}
+                -
+              {% endif %}
+            </p>
+          </div>
+          {% if search_type == 'ip' %}
+          <div class="font-mono bg-gray-50 p-3 rounded">
+            <p><strong>Network:</strong> {{ result.network_address }}</p>
+            <p><strong>Broadcast:</strong> {{ result.broadcast_address }}</p>
+            <p><strong>Usable IPs:</strong> {{ result.usable_ips_count }}</p>
+            <p><strong>Usable Range:</strong> {{ result.usable_range }}</p>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if search_type == 'ip' and result.all_usable_ips %}
+          <div class="mt-4">
+            <h4 class="font-semibold">Usable IP Addresses in this Subnet:</h4>
+            <div class="font-mono text-xs bg-gray-100 p-3 rounded-lg max-h-48 overflow-y-auto mt-2">
+              {% for ip in result.all_usable_ips %}
+                <span {% if ip|string == searched_ip %}class="bg-yellow-200 font-bold"{% endif %}>{{ ip }}</span>{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
   {% endif %}
+{% endif %}
 {% endblock %}
-

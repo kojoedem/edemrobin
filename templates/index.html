@@ -1,35 +1,46 @@
 {% extends "layout.html" %}
-{% block title %}IP DB - Home{% endblock %}
+{% block title %}Dashboard - IP DB{% endblock %}
+
 {% block content %}
 <div class="mb-6">
-  <h1 class="text-2xl font-semibold">IP Allocations</h1>
-  <p class="text-sm text-gray-600">Base block: <code>{{ base_block }}</code></p>
+  <h1 class="text-2xl font-semibold">Dashboard</h1>
+  <p class="text-gray-600">Overview of your network resources.</p>
 </div>
 
-{% if user.level >= 2 %}
-<form action="/allocate" method="post" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mb-8">
-  <div>
-    <label class="text-sm block mb-1">CIDR (e.g. /30)</label>
-    <input type="text" name="cidr" placeholder="/30" class="w-full border rounded px-3 py-2">
-  </div>
-  <div>
-    <label class="text-sm block mb-1">VLAN (optional)</label>
-    <input type="text" name="vlan" class="w-full border rounded px-3 py-2">
-  </div>
-  <div class="md:col-span-2">
-    <label class="text-sm block mb-1">Description (optional)</label>
-    <input type="text" name="description" class="w-full border rounded px-3 py-2">
-  </div>
-  <div class="md:col-span-4 flex justify-end">
-    <button class="bg-gray-900 text-white rounded px-4 py-2">Allocate</button>
-  </div>
-</form>
-{% else %}
-<div class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded mb-6">
-  Your level is {{ user.level }} — you can view only.
+<!-- Block Utilization Stats -->
+<h2 class="text-xl font-semibold mb-4">Block Utilization</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+  {% for stat in block_stats %}
+    <div class="bg-white rounded-xl shadow p-4">
+      <h3 class="font-bold text-lg">{{ stat.block.cidr }}</h3>
+      <p class="text-sm text-gray-500">{{ stat.block.description or "No description" }}</p>
+      <div class="mt-3">
+        <div class="flex justify-between items-center text-sm mb-1">
+          <span>Used: {{ "{:,}".format(stat.used_ips) }}</span>
+          <span>Total: {{ "{:,}".format(stat.total_ips) }}</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5">
+          <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ '%.2f'|format(stat.utilization) }}%"></div>
+        </div>
+        <p class="text-right text-sm font-medium text-gray-700 mt-1">{{ '%.2f'|format(stat.utilization) }}% Used</p>
+      </div>
+    </div>
+  {% else %}
+    <div class="md:col-span-2 lg:col-span-3 bg-white rounded-xl shadow p-4 text-center text-gray-500">
+      No IP blocks have been created yet. <a href="/admin/blocks" class="text-blue-600 hover:underline">Add one now</a>.
+    </div>
+  {% endfor %}
 </div>
-{% endif %}
 
+<!-- Recent Allocations -->
+<div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-semibold">Recent Allocations</h2>
+    {% if user.level >= 2 %}
+    <a href="/dashboard/allocate_ip" class="bg-gray-900 text-white rounded px-4 py-2 hover:bg-gray-700">
+      Allocate New Subnet
+    </a>
+    {% endif %}
+</div>
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="min-w-full">
     <thead class="bg-gray-50">
@@ -42,21 +53,27 @@
       </tr>
     </thead>
    <tbody>
-  {% if ips %}
-    {% for ip in ips %}
+  {% if allocations %}
+    {% for alloc in allocations %}
     <tr class="border-t">
-      <td class="p-3">{{ ip.subnet }}</td>
-      <td class="p-3">{{ ip.vlan or "-" }}</td>
-      <td class="p-3">{{ ip.description or "-" }}</td>
-      <td class="p-3">{{ ip.created_by }}</td>
+      <td class="p-3 font-mono">{{ alloc.cidr }}</td>
       <td class="p-3">
-        {{ ip.created_at.strftime("%Y-%m-%d %H:%M:%S") if ip.created_at else "-" }}
+        {% if alloc.vlan %}
+          {{ alloc.vlan.vlan_id }} - {{ alloc.vlan.name }}
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td class="p-3">{{ alloc.description or "-" }}</td>
+      <td class="p-3">{{ alloc.created_by }}</td>
+      <td class="p-3 text-sm">
+        {{ alloc.created_at.strftime("%Y-%m-%d %H:%M") if alloc.created_at else "-" }}
       </td>
     </tr>
     {% endfor %}
   {% else %}
     <tr>
-      <td colspan="5" class="p-6 text-center text-gray-500">No allocations yet.</td>
+      <td colspan="5" class="p-6 text-center text-gray-500">No subnets have been allocated yet.</td>
     </tr>
   {% endif %}
 </tbody>
