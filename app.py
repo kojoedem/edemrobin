@@ -60,7 +60,7 @@ def home(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
     # fetch all IP allocations
-    ips = db.query(models.IPAddress).all()
+    ips = db.query(models.Subnet).all()
 
     # fetch base block (optional, if exists)
     base_block = db.query(models.IPBlock).first()
@@ -80,19 +80,30 @@ def home(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/allocate")
 @level_required(2)
-def allocate_ip(
+def allocate_ip_action(
     request: Request,
     block_id: int = Form(...),
-    cidr: str = Form(...),
-    vlan: Optional[str] = Form(None),
+    subnet_size: int = Form(...),
+    vlan_id: Optional[int] = Form(None),
     description: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
-    new_subnet = allocate_subnet(db, block_id, user, subnet_size=int(cidr.strip("/")))
-    if not new_subnet:
-        raise HTTPException(status_code=400, detail="No available subnet")
-    return RedirectResponse("/", status_code=303)
+    try:
+        new_subnet = allocate_subnet(
+            db,
+            block_id=block_id,
+            user=user,
+            subnet_size=subnet_size,
+            vlan_id=vlan_id,
+            description=description
+        )
+    except HTTPException as e:
+        # You can pass the error message to the template
+        # For now, just re-raise
+        raise e
+
+    return RedirectResponse("/dashboard/allocate_ip", status_code=303)
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
@@ -227,49 +238,30 @@ def search_ip(request: Request, query: Optional[str] = None, db: Session = Depen
         "search_ip.html",
         {"request": request, "user": user, "results": results}
     )
-# GET - show page
-@app.get("/dashboard/allocate_ip")
-def allocate_ip(request: Request, db: Session = Depends(get_db)):
+@app.get("/dashboard/allocate_ip", response_class=HTMLResponse)
+def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
+    """
+    Renders the page for allocating new subnets.
+    """
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse("/login", status_code=302)
 
-    ips = db.query(models.IP).all()
+    # Fetch data needed for the form
+    allocations = db.query(models.Subnet).order_by(models.Subnet.created_at.desc()).all()
+    blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
+
     return templates.TemplateResponse(
         "allocate_ip.html",
-        {"request": request, "ips": ips, "user": user}
+        {
+            "request": request,
+            "user": user,
+            "allocations": allocations,
+            "blocks": blocks,
+            "vlans": vlans,
+        },
     )
-
-# POST - allocate new IP
-@app.post("/dashboard/allocate_ip")
-def allocate_ip_post(
-    request: Request,
-    subnet: str = Form(...),
-    vlan: str = Form(None),
-    description: str = Form(None),
-    db: Session = Depends(get_db),
-):
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    new_ip = models.IP(
-        subnet=subnet,
-        vlan=vlan,
-        description=description,
-        person=user.username,   # 👈 Assigned By = current user
-        created_at=datetime.utcnow()
-    )
-    db.add(new_ip)
-    db.commit()
-
-    return RedirectResponse(url="/dashboard/allocate_ip", status_code=303)
-
-
-@app.get("/dashboard/upload_config")
-def upload_config(request: Request, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})
 
 
 @app.get("/dashboard/upload_config/export")
@@ -292,7 +284,7 @@ def export_config_csv(
     with open(path, "r") as f:
         config_text = f.read()
 
-    ip_blocks, used_ips = parse_config(config_text)
+    processed_blocks, _, _ = parse_config(config_text)
 
     # build CSV
     buf = io.StringIO()
@@ -300,16 +292,16 @@ def export_config_csv(
 
     if view == "summary":
         # one row per block
-        w.writerow(["block_cidr", "used_ip_count"])
-        for block, ips in sorted(ip_blocks.items(), key=lambda x: x[0]):
-            w.writerow([block, len(ips)])
+        w.writerow(["block_cidr", "used_ip_count", "available_ip_count", "total_ip_count"])
+        for block in processed_blocks:
+            w.writerow([block["block_cidr"], block["used_count"], block["available_count"], block["total_count"]])
         out_name = f"{os.path.splitext(safe_name)[0]}_blocks_summary.csv"
     else:
         # one row per IP
         w.writerow(["block_cidr", "ip"])
-        for block, ips in sorted(ip_blocks.items(), key=lambda x: x[0]):
-            for ip in ips:
-                w.writerow([block, ip])
+        for block in processed_blocks:
+            for ip in block["used_ips"]:
+                w.writerow([block["block_cidr"], ip])
         out_name = f"{os.path.splitext(safe_name)[0]}_ip_list.csv"
 
     buf.seek(0)
@@ -318,7 +310,6 @@ def export_config_csv(
 
 
 from fastapi import File, UploadFile
-import os, re, ipaddress
 
 # Make sure configs folder exists
 os.makedirs("configs", exist_ok=True)
@@ -350,15 +341,16 @@ async def upload_config_post(
         f.write(config_text)
 
     # Parse config
-    ip_blocks, used_ips = parse_config(config_text)
+    processed_blocks, used_ips, invalid_entries = parse_config(config_text)
 
     return templates.TemplateResponse(
         "upload_result.html",
         {
             "request": request,
             "user": user,
-            "ip_blocks": ip_blocks,
+            "processed_blocks": processed_blocks,
             "used_ips": used_ips,
+            "invalid_entries": invalid_entries,
             "filename": file.filename,
         }
     )
