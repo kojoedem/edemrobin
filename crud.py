@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from models import (
     User, VLAN, IPBlock, Subnet, SubnetStatus, Device, Interface, InterfaceAddress
 )
+from security import hash_password
 
 # ---------- Users ----------
 def get_user_by_username(db: Session, username: str):
@@ -12,8 +13,9 @@ def get_user_by_username(db: Session, username: str):
 def get_users(db: Session):
     return db.query(User).all()
 
-def create_user(db: Session, username: str, password_hash: str, level: int = 1, is_admin: bool = False):
-    user = User(username=username, password_hash=password_hash, level=level, is_admin=is_admin)
+def create_user(db: Session, username: str, password: str, level: int = 1, is_admin: bool = False):
+    hashed_password = hash_password(password)
+    user = User(username=username, password_hash=hashed_password, level=level, is_admin=is_admin)
     db.add(user)
     db.commit()
     db.refresh(user)
