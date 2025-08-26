@@ -41,36 +41,41 @@ def get_current_user(request: Request, db: Session):
 def login_required(endpoint):
     @wraps(endpoint)
     async def wrapper(*args, **kwargs):
-        request: Request = kwargs.get("request")
-        db: Session = kwargs.get("db")
-        # This will raise an exception if not logged in, handled by FastAPI
+        request: Request = kwargs["request"]
+        db: Session = kwargs["db"]
         get_current_user(request, db)
-        # Await the actual endpoint function
-        return await endpoint(*args, **kwargs)
+        if inspect.iscoroutinefunction(endpoint):
+            return await endpoint(*args, **kwargs)
+        else:
+            return endpoint(*args, **kwargs)
     return wrapper
 
 def level_required(min_level: int):
     def decorator(endpoint):
         @wraps(endpoint)
         async def wrapper(*args, **kwargs):
-            request: Request = kwargs.get("request")
-            db: Session = kwargs.get("db")
+            request: Request = kwargs["request"]
+            db: Session = kwargs["db"]
             user = get_current_user(request, db)
             if user.level < min_level:
                 raise HTTPException(status_code=403, detail="Insufficient permission level")
-            # Await the actual endpoint function
-            return await endpoint(*args, **kwargs)
+            if inspect.iscoroutinefunction(endpoint):
+                return await endpoint(*args, **kwargs)
+            else:
+                return endpoint(*args, **kwargs)
         return wrapper
     return decorator
 
 def admin_required(endpoint):
     @wraps(endpoint)
     async def wrapper(*args, **kwargs):
-        request: Request = kwargs.get("request")
-        db: Session = kwargs.get("db")
+        request: Request = kwargs["request"]
+        db: Session = kwargs["db"]
         user = get_current_user(request, db)
         if not user.is_admin:
             raise HTTPException(status_code=403, detail="Admin access required")
-        # Await the actual endpoint function
-        return await endpoint(*args, **kwargs)
+        if inspect.iscoroutinefunction(endpoint):
+            return await endpoint(*args, **kwargs)
+        else:
+            return endpoint(*args, **kwargs)
     return wrapper
