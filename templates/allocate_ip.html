@@ -2,87 +2,99 @@
 {% block title %}Allocate Subnet - EDEMROBIN{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Allocate a new Subnet</h1>
+<div class="mb-6 border-b border-slate-200 pb-4">
+  <h1 class="text-2xl font-bold text-slate-700">Allocate a New Subnet</h1>
+  <p class="text-slate-500">Automatically find and allocate the next available subnet from a parent block.</p>
+</div>
 
-<form method="post" action="/allocate" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
+    <form method="post" action="/allocate" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
-  <!-- Block Selection -->
-  <div class="md:col-span-2 lg:col-span-1">
-    <label for="block_id" class="text-sm font-medium block mb-1">Parent Block</label>
-    <select name="block_id" id="block_id" class="w-full border rounded px-3 py-2" required>
-      <option value="" disabled selected>-- Select a Block --</option>
-      {% for block in blocks %}
-        <option value="{{ block.id }}">{{ block.cidr }} ({{ block.description or 'No description' }})</option>
-      {% endfor %}
-    </select>
-  </div>
+      <div class="lg:col-span-1">
+        <label for="block_id" class="text-sm font-medium text-slate-600 block mb-1">Parent Block</label>
+        <select name="block_id" id="block_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+          <option value="" disabled selected>-- Select a Block --</option>
+          {% for block in blocks %}
+            <option value="{{ block.id }}">{{ block.cidr }} ({{ block.description or 'No description' }})</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <!-- Subnet Size -->
-  <div>
-    <label for="subnet_size" class="text-sm font-medium block mb-1">Subnet Size</label>
-    <select name="subnet_size" id="subnet_size" class="w-full border rounded px-3 py-2" required>
-      <option value="" disabled selected>-- Select Size --</option>
-      {% for i in range(1, 33) %}
-        <option value="{{ i }}">/{{ i }}</option>
-      {% endfor %}
-    </select>
-  </div>
+      <div>
+        <label for="subnet_size" class="text-sm font-medium text-slate-600 block mb-1">Subnet Size</label>
+        <select name="subnet_size" id="subnet_size" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+          <option value="" disabled selected>-- Select Size --</option>
+          {% for i in range(16, 33) %}
+            <option value="{{ i }}">/{{ i }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <!-- VLAN Selection -->
-  <div>
-    <label for="vlan_id" class="text-sm font-medium block mb-1">VLAN (optional)</label>
-    <select name="vlan_id" id="vlan_id" class="w-full border rounded px-3 py-2">
-      <option value="">-- No VLAN --</option>
-      {% for vlan in vlans %}
-        <option value="{{ vlan.id }}">{{ vlan.vlan_id }} - {{ vlan.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+      <div>
+        <label for="vlan_id" class="text-sm font-medium text-slate-600 block mb-1">VLAN (optional)</label>
+        <select name="vlan_id" id="vlan_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+          <option value="">-- No VLAN --</option>
+          {% for vlan in vlans %}
+            <option value="{{ vlan.id }}">{{ vlan.vlan_id }} - {{ vlan.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <!-- Description -->
-  <div class="md:col-span-2 lg:col-span-3">
-    <label for="description" class="text-sm font-medium block mb-1">Description</label>
-    <input type="text" name="description" id="description" class="w-full border rounded px-3 py-2" placeholder="e.g. Office network for new floor">
-  </div>
+      <div class="lg:col-span-1"></div>
 
-  <!-- Submit Button -->
-  <div class="md:col-span-2 lg:col-span-1 flex items-end">
-    <button class="bg-gray-900 text-white rounded px-4 py-2 w-full">Allocate Next Available</button>
-  </div>
-</form>
+      <div class="lg:col-span-2">
+        <label for="description" class="text-sm font-medium text-slate-600 block mb-1">Description</label>
+        <input type="text" name="description" id="description" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or Service" required>
+      </div>
 
-<h2 class="text-xl font-semibold mb-4">Existing Allocations</h2>
-<div class="bg-white rounded-xl shadow overflow-x-auto">
+      <div>
+        <label for="description_format" class="text-sm font-medium text-slate-600 block mb-1">Formatting</label>
+        <select name="description_format" id="description_format" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+          <option value="uppercase" selected>UPPERCASE</option>
+          <option value="lowercase">lowercase</option>
+          <option value="hyphen">hyphen-case</option>
+          <option value="underscore">underscore_case</option>
+        </select>
+      </div>
+
+      <div class="lg:col-span-1 flex items-end">
+        <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 w-full text-sm hover:bg-slate-700 transition">Allocate Next Available</button>
+      </div>
+    </form>
+</div>
+
+<h2 class="text-xl font-semibold text-slate-600 mb-4">Existing Active Allocations</h2>
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
   <table class="min-w-full">
-    <thead class="bg-gray-50">
+    <thead class="bg-slate-50">
       <tr>
-        <th class="text-left p-3 text-sm font-semibold">Subnet</th>
-        <th class="text-left p-3 text-sm font-semibold">Parent Block</th>
-        <th class="text-left p-3 text-sm font-semibold">VLAN</th>
-        <th class="text-left p-3 text-sm font-semibold">Description</th>
-        <th class="text-left p-3 text-sm font-semibold">Allocated By</th>
-        <th class="text-left p-3 text-sm font-semibold">Date</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Subnet</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Parent Block</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">VLAN</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Allocated By</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Date</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody class="divide-y divide-slate-200">
       {% for alloc in allocations %}
-      <tr class="border-t hover:bg-gray-50">
-        <td class="p-3 font-mono">{{ alloc.cidr }}</td>
-        <td class="p-3 font-mono text-sm text-gray-600">{{ alloc.block.cidr }}</td>
-        <td class="p-3">
+      <tr class="hover:bg-slate-50">
+        <td class="p-4 font-mono text-sm">{{ alloc.cidr }}</td>
+        <td class="p-4 font-mono text-sm text-slate-500">{{ alloc.block.cidr }}</td>
+        <td class="p-4 text-sm">
           {% if alloc.vlan %}
             {{ alloc.vlan.vlan_id }} - {{ alloc.vlan.name }}
           {% else %}
-            -
+            <span class="text-slate-400">-</span>
           {% endif %}
         </td>
-        <td class="p-3">{{ alloc.description or "-" }}</td>
-        <td class="p-3">{{ alloc.created_by or "-" }}</td>
-        <td class="p-3 text-sm text-gray-600">{{ alloc.created_at.strftime('%Y-%m-%d %H:%M') if alloc.created_at else '-' }}</td>
+        <td class="p-4 text-sm text-slate-600">{{ alloc.description }}</td>
+        <td class="p-4 text-sm text-slate-600">{{ alloc.created_by or "-" }}</td>
+        <td class="p-4 text-sm text-slate-500">{{ alloc.created_at.strftime('%Y-%m-%d %H:%M') if alloc.created_at else '-' }}</td>
       </tr>
       {% endfor %}
       {% if not allocations %}
-      <tr><td colspan="6" class="p-6 text-center text-gray-500">No subnets allocated yet.</td></tr>
+      <tr><td colspan="6" class="p-6 text-center text-slate-500">No subnets allocated yet.</td></tr>
       {% endif %}
     </tbody>
   </table>
