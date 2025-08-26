@@ -10,8 +10,8 @@ def allocate_subnet(
     block_id: int,
     user: User,
     subnet_size: int,
-    vlan_id: Optional[int] = None,
     description: str,
+    vlan_id: Optional[int] = None,
 ):
     """
     Finds the next available subnet of a given size within a parent block.
@@ -41,7 +41,7 @@ def allocate_subnet(
         if not is_overlapping:
             new_allocation = Subnet(
                 cidr=str(candidate_subnet),
-                status=SubnetStatus.allocated,
+                status=SubnetStatus.inactive,
                 vlan_id=vlan_id,
                 description=description,
                 created_by=user.username,
