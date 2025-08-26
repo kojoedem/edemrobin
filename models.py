@@ -44,6 +44,7 @@ class SubnetStatus(PyEnum):
     imported = "imported"
     allocated = "allocated"
     reserved = "reserved"
+    deactivated = "deactivated"
 
 
 class Subnet(Base):

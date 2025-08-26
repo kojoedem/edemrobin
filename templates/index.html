@@ -50,16 +50,17 @@
         <th class="text-left p-3 text-sm font-semibold">Description</th>
         <th class="text-left p-3 text-sm font-semibold">Created By</th>
         <th class="text-left p-3 text-sm font-semibold">Created At (UTC)</th>
+        <th class="text-left p-3 text-sm font-semibold">Actions</th>
       </tr>
     </thead>
    <tbody>
   {% if allocations %}
     {% for alloc in allocations %}
-    <tr class="border-t">
+    <tr class="border-t hover:bg-gray-50">
       <td class="p-3 font-mono">{{ alloc.cidr }}</td>
       <td class="p-3">
         {% if alloc.vlan %}
-          {{ alloc.vlan.vlan_id }} - {{ alloc.vlan.name }}
+          <span class="font-semibold">{{ alloc.vlan.vlan_id }}</span> - {{ alloc.vlan.name }}
         {% else %}
           -
         {% endif %}
@@ -68,6 +69,15 @@
       <td class="p-3">{{ alloc.created_by }}</td>
       <td class="p-3 text-sm">
         {{ alloc.created_at.strftime("%Y-%m-%d %H:%M") if alloc.created_at else "-" }}
+      </td>
+      <td class="p-3 text-sm">
+        {% if user.is_admin %}
+          <a href="/dashboard/allocations/{{ alloc.id }}/edit" class="text-blue-600 hover:underline font-semibold">Edit</a>
+
+          <form action="/dashboard/allocations/{{ alloc.id }}/deactivate" method="post" class="inline-block ml-2" onsubmit="return confirm('Are you sure you want to deactivate this subnet? This action cannot be undone.');">
+              <button type="submit" class="text-red-600 hover:underline font-semibold">Deactivate</button>
+          </form>
+        {% endif %}
       </td>
     </tr>
     {% endfor %}
