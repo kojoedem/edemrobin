@@ -4,23 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>{% block title %}IP DB{% endblock %}</title>
-  <!-- Tailwind via CDN for starter simplicity -->
+  <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen">
-  <nav class="bg-gray-900 text-white px-6 py-3 flex justify-between items-center">
-    <a href="/" class="font-semibold">IP DB</a>
-    <div class="flex gap-4 items-center">
-      {% if user %}
-        <span class="text-sm opacity-80">Logged in as <strong>{{ user.username }}</strong> (L{{ user.level }}{% if user.is_admin %}, Admin{% endif %})</span>
-        {% if user.is_admin %}
-          <a href="/admin/users" class="text-sm underline hover:no-underline">Admin</a>
+<body class="bg-gray-100 min-h-screen flex">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-900 text-white flex-shrink-0 h-screen p-6">
+    <h1 class="text-xl font-bold mb-6">IP DB</h1>
+    {% if user %}
+      <p class="text-sm mb-4">Logged in as <strong>{{ user.username }}</strong> (L{{ user.level }}{% if user.is_admin %}, Admin{% endif %})</p>
+      <ul class="space-y-3">
+        <li><a href="/" class="hover:text-gray-300">🏠 Dashboard</a></li>
+        <li><a href="/dashboard/search_ip" class="hover:text-gray-300">🔍 Search IP</a></li>
+        <li><a href="/dashboard/search_vlan" class="hover:text-gray-300">🔍 Search VLAN</a></li>
+        {% if user.level >= 2 %}
+        <li><a href="/dashboard/add_vlan" class="hover:text-gray-300">➕ Add VLAN</a></li>
+        <li><a href="/dashboard/allocate_ip" class="hover:text-gray-300">➕ Allocate IP</a></li>
         {% endif %}
-        <a href="/logout" class="bg-white text-gray-900 rounded px-3 py-1 text-sm">Logout</a>
-      {% endif %}
-    </div>
-  </nav>
-  <main class="p-6 max-w-5xl mx-auto">
+        {% if user.is_admin %}
+        <li><a href="/admin/blocks" class="hover:text-gray-300">📦 Manage Blocks</a></li>
+        <li><a href="/admin/users" class="hover:text-gray-300">👤 Manage Users</a></li>
+        {% endif %}
+        <li><a href="/logout" class="hover:text-gray-300">🔓 Logout</a></li>
+      </ul>
+    {% else %}
+      <a href="/login" class="underline hover:no-underline">Login</a>
+    {% endif %}
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1 p-6">
     {% block content %}{% endblock %}
   </main>
 </body>

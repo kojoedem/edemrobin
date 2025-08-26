@@ -1,5 +1,7 @@
 {% extends "layout.html" %}
+
 {% block title %}IP DB - Home{% endblock %}
+
 {% block content %}
 <div class="mb-6">
   <h1 class="text-2xl font-semibold">IP Allocations</h1>
@@ -10,7 +12,7 @@
 <form action="/allocate" method="post" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mb-8">
   <div>
     <label class="text-sm block mb-1">CIDR (e.g. /30)</label>
-    <input type="text" name="cidr" placeholder="/30" class="w-full border rounded px-3 py-2">
+    <input type="text" name="cidr" placeholder="/30" class="w-full border rounded px-3 py-2" required>
   </div>
   <div>
     <label class="text-sm block mb-1">VLAN (optional)</label>
@@ -21,7 +23,7 @@
     <input type="text" name="description" class="w-full border rounded px-3 py-2">
   </div>
   <div class="md:col-span-4 flex justify-end">
-    <button class="bg-gray-900 text-white rounded px-4 py-2">Allocate</button>
+    <button type="submit" class="bg-gray-900 text-white rounded px-4 py-2 hover:bg-gray-700">Allocate</button>
   </div>
 </form>
 {% else %}

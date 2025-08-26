@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block title %}Search VLAN - IP DB{% endblock %}
+
+{% block content %}
+  <h2 class="text-2xl font-bold mb-4">🔍 Search VLAN</h2>
+  
+  <form method="get" action="/dashboard/search_vlan" class="space-y-4">
+    <div>
+      <label class="block mb-1 font-semibold">VLAN ID</label>
+      <input type="text" name="query" placeholder="Enter VLAN ID..." 
+             class="border rounded p-2 w-full" />
+    </div>
+    <button type="submit" 
+            class="bg-blue-600 text-white px-4 py-2 rounded">
+      Search
+    </button>
+  </form>
+
+  {% if results is defined %}
+    <h3 class="text-xl mt-6 mb-2">Results</h3>
+    {% if results %}
+      <table class="min-w-full bg-white border">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="px-4 py-2 border">VLAN</th>
+            <th class="px-4 py-2 border">Subnet</th>
+            <th class="px-4 py-2 border">Description</th>
+            <th class="px-4 py-2 border">Assigned By</th>
+            <th class="px-4 py-2 border">Created At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ip in results %}
+          <tr>
+            <td class="border px-4 py-2">{{ ip.vlan }}</td>
+            <td class="border px-4 py-2">{{ ip.subnet }}</td>
+            <td class="border px-4 py-2">{{ ip.description }}</td>
+            <td class="border px-4 py-2">{{ ip.person }}</td>
+            <td class="border px-4 py-2">{{ ip.created_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-gray-600">No VLANs found matching your search.</p>
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block title %}IP DB - Admin Blocks{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Admin: IP Blocks</h1>
+
+<form method="post" action="/admin/blocks/create" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+  <div>
+    <label class="text-sm block mb-1">CIDR</label>
+    <input type="text" name="cidr" placeholder="192.168.0.0/24" class="w-full border rounded px-3 py-2" required>
+  </div>
+  <div class="md:col-span-2">
+    <label class="text-sm block mb-1">Description (optional)</label>
+    <input type="text" name="description" class="w-full border rounded px-3 py-2">
+  </div>
+  <div class="md:col-span-3 flex justify-end">
+    <button class="bg-gray-900 text-white rounded px-4 py-2">Add Block</button>
+  </div>
+</form>
+
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="text-left p-3 text-sm font-semibold">CIDR</th>
+        <th class="text-left p-3 text-sm font-semibold">Description</th>
+        <th class="text-left p-3 text-sm font-semibold">Created By</th>
+        <th class="text-left p-3 text-sm font-semibold">Created At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for block in blocks %}
+      <tr class="border-t">
+        <td class="p-3">{{ block.cidr }}</td>
+        <td class="p-3">{{ block.description or "-" }}</td>
+        <td class="p-3">{{ block.created_by or "-" }}</td>
+        <td class="p-3">{{ block.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      </tr>
+      {% endfor %}
+      {% if not blocks %}
+      <tr><td colspan="4" class="p-6 text-center text-gray-500">No blocks yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

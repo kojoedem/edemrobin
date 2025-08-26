@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}Add VLAN - IP DB{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">➕ Add VLAN</h1>
+
+<!-- VLAN Creation Form -->
+<form method="post" action="/dashboard/add_vlan" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+  <div>
+    <label class="text-sm block mb-1">VLAN ID</label>
+    <input type="number" name="vlan_id" min="1" max="4094" class="w-full border rounded px-3 py-2" required>
+  </div>
+  <div>
+    <label class="text-sm block mb-1">Name</label>
+    <input type="text" name="name" class="w-full border rounded px-3 py-2" required>
+  </div>
+  <div class="md:col-span-3 flex justify-end">
+    <button class="bg-gray-900 text-white rounded px-4 py-2">Add VLAN</button>
+  </div>
+</form>
+
+<!-- VLAN List -->
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="text-left p-3 text-sm font-semibold">VLAN ID</th>
+        <th class="text-left p-3 text-sm font-semibold">Name</th>
+        <th class="text-left p-3 text-sm font-semibold">Created By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for vlan in vlans %}
+      <tr class="border-t">
+        <td class="p-3">{{ vlan.vlan_id }}</td>
+        <td class="p-3">{{ vlan.name }}</td>
+        <td class="p-3">{{ vlan.created_by }}</td>
+      </tr>
+      {% endfor %}
+      {% if not vlans %}
+      <tr><td colspan="3" class="p-6 text-center text-gray-500">No VLANs yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

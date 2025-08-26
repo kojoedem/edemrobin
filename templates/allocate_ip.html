@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% block title %}IP DB - Allocate IP{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Allocate an IP</h1>
+<form method="post" action="/dashboard/allocate_ip" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-4 gap-3 mb-8">
+  <div>
+    <label class="text-sm block mb-1">Subnet</label>
+    <input type="text" name="subnet" class="w-full border rounded px-3 py-2" placeholder="192.168.1.0/24" required>
+  </div>
+  <div>
+    <label class="text-sm block mb-1">VLAN (optional)</label>
+    <input type="text" name="vlan" class="w-full border rounded px-3 py-2" placeholder="10">
+  </div>
+  <div>
+    <label class="text-sm block mb-1">Description</label>
+    <input type="text" name="description" class="w-full border rounded px-3 py-2" placeholder="Server room IP">
+  </div>
+  <div>
+    <label class="text-sm block mb-1">Assigned By</label>
+    <input type="text" name="person" value="{{ user.username if user else '' }}" 
+           class="w-full border rounded px-3 py-2 bg-gray-100" readonly>
+  </div>
+  <div class="md:col-span-4 flex justify-end">
+    <button class="bg-gray-900 text-white rounded px-4 py-2">Allocate</button>
+  </div>
+</form>
+
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="text-left p-3 text-sm font-semibold">Subnet</th>
+        <th class="text-left p-3 text-sm font-semibold">VLAN</th>
+        <th class="text-left p-3 text-sm font-semibold">Description</th>
+        <th class="text-left p-3 text-sm font-semibold">Person</th>
+        <th class="text-left p-3 text-sm font-semibold">Created At</th>
+      </tr>
+    </thead>
+   
+  </table>
+</div>
+{% endblock %}
+<tbody>
+  {% for ip in ips %}
+  <tr class="border-t">
+    <td class="p-3">{{ ip.subnet }}</td>
+    <td class="p-3">{{ ip.vlan or "-" }}</td>
+    <td class="p-3">{{ ip.description or "-" }}</td>
+    <td class="p-3">{{ ip.person or "-" }}</td>
+    <td class="p-3">{{ ip.created_at }}</td>
+  </tr>
+  {% endfor %}
+  {% if not ips %}
+  <tr><td colspan="5" class="p-6 text-center text-gray-500">No IPs allocated yet.</td></tr>
+  {% endif %}
+</tbody>

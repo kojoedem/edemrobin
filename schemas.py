@@ -1,33 +1,36 @@
-from pydantic import BaseModel
+# schemas.py
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, Literal
 from datetime import datetime
 
-class IPBase(BaseModel):
-    subnet: str
-    vlan: str | None = None
-    description: str | None = None
-    person: str
+class VLANBase(BaseModel):
+    vlan_id: int
+    name: str
+    site: Optional[str] = None
+
+class VLAN(VLANBase):
+    id: int
+    created_by: str
     created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
-class IPCreate(IPBase):
-    pass
+class IPBlockBase(BaseModel):
+    cidr: str
+    description: Optional[str] = None
 
-class IP(IPBase):
+class IPBlock(IPBlockBase):
     id: int
-    class Config:
-        orm_mode = True
+    created_by: Optional[str] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
-class UserBase(BaseModel):
-    username: str
-    level: int
-    is_admin: bool
-
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    level: int = 1
-    is_admin: bool = False
-
-class User(UserBase):
+class Subnet(BaseModel):
     id: int
-    class Config:
-        orm_mode = True
+    cidr: str
+    status: Literal["imported","allocated","reserved"]
+    vlan_id: Optional[int] = None
+    description: Optional[str] = None
+    block_id: int
+    created_by: Optional[str] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
