@@ -1,43 +1,50 @@
 {% extends "layout.html" %}
-{% block title %}IP DB - Admin Blocks{% endblock %}
+{% block title %}Admin Blocks - EDEMROBIN{% endblock %}
+
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Admin: IP Blocks</h1>
+<div class="mb-6 border-b border-slate-200 pb-4">
+  <h1 class="text-2xl font-bold text-slate-700">Admin: IP Blocks</h1>
+  <p class="text-slate-500">Define the parent IP blocks from which subnets can be allocated.</p>
+</div>
 
-<form method="post" action="/admin/blocks/create" class="bg-white rounded-xl shadow p-4 grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
-  <div>
-    <label class="text-sm block mb-1">CIDR</label>
-    <input type="text" name="cidr" placeholder="192.168.0.0/24" class="w-full border rounded px-3 py-2" required>
-  </div>
-  <div class="md:col-span-2">
-    <label class="text-sm block mb-1">Description (optional)</label>
-    <input type="text" name="description" class="w-full border rounded px-3 py-2">
-  </div>
-  <div class="md:col-span-3 flex justify-end">
-    <button class="bg-gray-900 text-white rounded px-4 py-2">Add Block</button>
-  </div>
-</form>
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
+    <h2 class="text-lg font-semibold text-slate-700 mb-4">Add New Block</h2>
+    <form method="post" action="/admin/blocks/create" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label for="cidr" class="text-sm font-medium text-slate-600 block mb-1">CIDR</label>
+        <input type="text" name="cidr" id="cidr" placeholder="e.g., 10.0.0.0/16" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+      </div>
+      <div class="md:col-span-2">
+        <label for="description" class="text-sm font-medium text-slate-600 block mb-1">Description (optional)</label>
+        <input type="text" name="description" id="description" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+      </div>
+      <div class="md:col-span-3 flex justify-end">
+        <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Add Block</button>
+      </div>
+    </form>
+</div>
 
-<div class="bg-white rounded-xl shadow overflow-x-auto">
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
   <table class="min-w-full">
-    <thead class="bg-gray-50">
+    <thead class="bg-slate-50">
       <tr>
-        <th class="text-left p-3 text-sm font-semibold">CIDR</th>
-        <th class="text-left p-3 text-sm font-semibold">Description</th>
-        <th class="text-left p-3 text-sm font-semibold">Created By</th>
-        <th class="text-left p-3 text-sm font-semibold">Created At</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">CIDR</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Created By</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Created At</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody class="divide-y divide-slate-200">
       {% for block in blocks %}
-      <tr class="border-t">
-        <td class="p-3">{{ block.cidr }}</td>
-        <td class="p-3">{{ block.description or "-" }}</td>
-        <td class="p-3">{{ block.created_by or "-" }}</td>
-        <td class="p-3">{{ block.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <tr class="hover:bg-slate-50">
+        <td class="p-4 font-mono text-sm">{{ block.cidr }}</td>
+        <td class="p-4 text-sm text-slate-600">{{ block.description or "-" }}</td>
+        <td class="p-4 text-sm text-slate-600">{{ block.created_by or "-" }}</td>
+        <td class="p-4 text-sm text-slate-500">{{ block.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
       </tr>
       {% endfor %}
       {% if not blocks %}
-      <tr><td colspan="4" class="p-6 text-center text-gray-500">No blocks yet.</td></tr>
+      <tr><td colspan="4" class="p-6 text-center text-slate-500">No blocks yet.</td></tr>
       {% endif %}
     </tbody>
   </table>
