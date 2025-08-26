@@ -10,23 +10,41 @@
      class="bg-white border rounded px-4 py-2 hover:bg-gray-50">Export Block Summary CSV</a>
 </div>
 
+{% if invalid_entries %}
+<h2 class="text-lg font-semibold mb-2 mt-6 text-red-600">Invalid Entries Found</h2>
+<div class="bg-red-50 border border-red-200 rounded-xl shadow p-4 mb-6">
+    <ul class="list-disc pl-5 text-red-800 font-mono text-sm">
+        {% for entry in invalid_entries %}
+        <li>{{ entry }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <h2 class="text-lg font-semibold mb-2">IP Blocks Found</h2>
 <div class="bg-white rounded-xl shadow p-4">
-  {% if ip_blocks %}
+  {% if processed_blocks %}
     <ul class="list-disc pl-5">
-      {% for block, ips in ip_blocks.items() %}
-      <li class="mb-2">
-        <b>{{ block }}</b> — {{ ips|length }} IPs
+      {% for block in processed_blocks %}
+      <li class="mb-4">
+        <div class="font-bold text-lg">{{ block.block_cidr }}</div>
+        <div class="text-sm text-gray-600">
+            {{ block.used_count }} used /
+            <span class="text-green-600">{{ block.available_count }} available</span> /
+            {{ block.total_count }} total
+        </div>
+        {% if block.used_ips %}
         <ul class="list-disc pl-6 mt-1 text-sm text-gray-700">
-          {% for ip in ips %}
+          {% for ip in block.used_ips %}
           <li>{{ ip }}</li>
           {% endfor %}
         </ul>
+        {% endif %}
       </li>
       {% endfor %}
     </ul>
   {% else %}
-    <p class="text-gray-600">No IPs detected in this config.</p>
+    <p class="text-gray-600">No valid IP blocks detected in this config.</p>
   {% endif %}
 </div>
 {% endblock %}
