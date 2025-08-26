@@ -6,7 +6,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional, List
-import os, re, ipaddress, io, csv
+import os, re, ipaddress, io, csv, shutil
 from starlette.responses import StreamingResponse
 
 import crud, models, schemas
@@ -304,6 +304,60 @@ def create_block(
 
     # Redirect back to the blocks page
     return RedirectResponse(url="/admin/blocks", status_code=303)
+
+
+@app.get("/admin/settings", response_class=HTMLResponse)
+@admin_required
+def settings_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+
+    company_name_setting = db.query(models.Setting).filter(models.Setting.key == "company_name").first()
+    logo_setting = db.query(models.Setting).filter(models.Setting.key == "logo_path").first()
+
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "user": user,
+            "company_name": company_name_setting.value if company_name_setting else "",
+            "logo_path": logo_setting.value if logo_setting else None,
+        }
+    )
+
+@app.post("/admin/settings")
+@admin_required
+async def settings_update(
+    request: Request,
+    company_name: str = Form(""),
+    logo: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+):
+    # Update company name
+    name_setting = db.query(models.Setting).filter(models.Setting.key == "company_name").first()
+    if not name_setting:
+        name_setting = models.Setting(key="company_name", value=company_name)
+        db.add(name_setting)
+    else:
+        name_setting.value = company_name
+
+    # Handle logo upload
+    if logo and logo.filename:
+        # Save the logo to the static directory
+        logo_path = f"static/logo-{logo.filename}"
+        with open(logo_path, "wb") as buffer:
+            shutil.copyfileobj(logo.file, buffer)
+
+        # Save the path to the database
+        logo_setting = db.query(models.Setting).filter(models.Setting.key == "logo_path").first()
+        if not logo_setting:
+            logo_setting = models.Setting(key="logo_path", value=logo_path)
+            db.add(logo_setting)
+        else:
+            logo_setting.value = logo_path
+
+    db.commit()
+
+    return RedirectResponse(url="/admin/settings", status_code=303)
 
 
 # GET - render VLAN form

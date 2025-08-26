@@ -13,6 +13,15 @@
     <div class="mb-8 px-2">
       <a href="/" class="text-2xl font-bold tracking-wider text-white hover:text-gray-200">EDEM<span class="text-sky-400">ROBIN</span></a>
     </div>
+
+    {% if request.state.settings.get('logo_path') %}
+    <div class="mb-4 text-center">
+        <img src="/{{ request.state.settings.logo_path }}" alt="Company Logo" class="h-16 mx-auto">
+    </div>
+    {% endif %}
+    {% if request.state.settings.get('company_name') %}
+    <p class="text-center text-slate-400 text-sm mb-4">{{ request.state.settings.company_name }}</p>
+    {% endif %}
     {% if user %}
       <div class="mb-6 text-sm px-2">
         <p>Logged in as</p>
@@ -33,6 +42,7 @@
           <li><a href="/admin/users" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">👤 Manage Users</a></li>
           <li><a href="/dashboard/churned" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📉 Churned Allocations</a></li>
         <li><a href="/dashboard/upload_config" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">☁️ Upload Config</a></li>
+        <li><a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">⚙️ Settings</a></li>
           {% endif %}
         </ul>
       </nav>

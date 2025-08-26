@@ -139,3 +139,9 @@ class InterfaceAddress(Base):
     subnet_id = Column(Integer, ForeignKey("subnets.id"), nullable=True)
 
     interface = relationship("Interface", back_populates="addresses")
+
+
+class Setting(Base):
+    __tablename__ = "settings"
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String, nullable=True)
