@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Login - IP DB</title>
+  <title>Login - EDEMROBIN</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
-  <form method="post" action="/login" class="bg-white rounded-xl shadow p-6 w-full max-w-sm">
-    <h1 class="text-xl font-semibold mb-4">Login</h1>
+  <div class="bg-white rounded-xl shadow p-6 w-full max-w-sm">
+    <div class="mb-4 text-center">
+        <a href="/" class="text-2xl font-bold tracking-wider text-gray-800">EDEM<span class="text-blue-500">ROBIN</span></a>
+    </div>
+    <h2 class="text-center text-gray-600 mb-4">Login to your account</h2>
+    <form method="post" action="/login" class="space-y-4">
     {% if error %}
     <div class="bg-red-50 border border-red-200 text-red-700 p-2 rounded mb-4">{{ error }}</div>
     {% endif %}

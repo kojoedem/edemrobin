@@ -3,31 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{% block title %}IP DB{% endblock %}</title>
+  <title>{% block title %}EDEMROBIN{% endblock %}</title>
   <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex">
+<body class="bg-slate-50 min-h-screen flex">
   <!-- Sidebar -->
-  <aside class="w-64 bg-gray-900 text-white flex-shrink-0 h-screen p-6">
-    <h1 class="text-xl font-bold mb-6">IP DB</h1>
+  <aside class="w-64 bg-slate-800 text-slate-300 flex-shrink-0 h-screen p-4 flex flex-col">
+    <div class="mb-8 px-2">
+      <a href="/" class="text-2xl font-bold tracking-wider text-white hover:text-gray-200">EDEM<span class="text-sky-400">ROBIN</span></a>
+    </div>
     {% if user %}
-      <p class="text-sm mb-4">Logged in as <strong>{{ user.username }}</strong> (L{{ user.level }}{% if user.is_admin %}, Admin{% endif %})</p>
-      <ul class="space-y-3">
-        <li><a href="/" class="hover:text-gray-300">🏠 Dashboard</a></li>
-        <li><a href="/dashboard/search_ip" class="hover:text-gray-300">🔍 Search IP</a></li>
-        <li><a href="/dashboard/search_vlan" class="hover:text-gray-300">🔍 Search VLAN</a></li>
-        {% if user.level >= 2 %}
-        <li><a href="/dashboard/add_vlan" class="hover:text-gray-300">➕ Add VLAN</a></li>
-        <li><a href="/dashboard/allocate_ip" class="hover:text-gray-300">➕ Allocate IP</a></li>
-        {% endif %}
-        {% if user.is_admin %}
-        <li><a href="/admin/blocks" class="hover:text-gray-300">📦 Manage Blocks</a></li>
-        <li><a href="/admin/users" class="hover:text-gray-300">👤 Manage Users</a></li>
-        <li><a href="/dashboard/churned" class="hover:text-gray-300">📉 Churned Allocations</a></li>
-        {% endif %}
-        <li><a href="/logout" class="hover:text-gray-300">🔓 Logout</a></li>
-      </ul>
+      <div class="mb-6 text-sm px-2">
+        <p>Logged in as</p>
+        <p class="font-semibold text-lg text-white">{{ user.username }}</p>
+        <p class="text-slate-400">(Level {{ user.level }}{% if user.is_admin %}, Admin{% endif %})</p>
+      </div>
+      <nav class="flex-grow">
+        <ul class="space-y-2 text-slate-200">
+          <li><a href="/" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏠 Dashboard</a></li>
+          <li><a href="/dashboard/search_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔍 Search IP</a></li>
+          <li><a href="/dashboard/search_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔍 Search VLAN</a></li>
+          {% if user.level >= 2 %}
+          <li><a href="/dashboard/add_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Add VLAN</a></li>
+          <li><a href="/dashboard/allocate_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Allocate IP</a></li>
+          {% endif %}
+          {% if user.is_admin %}
+          <li><a href="/admin/blocks" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📦 Manage Blocks</a></li>
+          <li><a href="/admin/users" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">👤 Manage Users</a></li>
+          <li><a href="/dashboard/churned" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📉 Churned Allocations</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      <div class="mt-auto">
+        <a href="/logout" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔓 Logout</a>
+      </div>
     {% else %}
       <a href="/login" class="underline hover:no-underline">Login</a>
     {% endif %}
