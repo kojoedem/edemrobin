@@ -59,21 +59,35 @@ templates = Jinja2Templates(directory="templates")
 def home(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
-    # fetch all IP allocations
-    ips = db.query(models.Subnet).all()
+    # Fetch all allocated subnets for the main table
+    allocations = db.query(models.Subnet).order_by(models.Subnet.created_at.desc()).all()
 
-    # fetch base block (optional, if exists)
-    base_block = db.query(models.IPBlock).first()
-    base_block = base_block.cidr if base_block else "Not set"
+    # Calculate utilization stats for each parent block
+    blocks = db.query(models.IPBlock).all()
+    block_stats = []
+    for block in blocks:
+        parent_network = ipaddress.ip_network(block.cidr)
+        total_ips = parent_network.num_addresses
+
+        used_ips = 0
+        for subnet in block.subnets:
+            used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
+
+        block_stats.append({
+            "block": block,
+            "total_ips": total_ips,
+            "used_ips": used_ips,
+            "available_ips": total_ips - used_ips,
+            "utilization": (used_ips / total_ips) * 100 if total_ips > 0 else 0,
+        })
 
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "user": user,
-            "ips": ips,            # ✅ ensure ips is passed
-
-            "base_block": base_block,
+            "allocations": allocations,
+            "block_stats": block_stats,
         }
     )
 
@@ -231,12 +245,65 @@ def search_ip(request: Request, query: Optional[str] = None, db: Session = Depen
         return RedirectResponse("/login", status_code=302)
 
     results = []
+    search_type = None
+    error = None
+    searched_ip_str = None
+
     if query:
-        results = db.query(models.IP).filter(models.IP.subnet.contains(query)).all()
+        try:
+            # Try to parse the query as an IP address
+            searched_ip = ipaddress.ip_address(query)
+            searched_ip_str = str(searched_ip)
+            search_type = 'ip'
+
+            all_subnets = db.query(models.Subnet).all()
+            found_subnets = []
+            for subnet in all_subnets:
+                if searched_ip in ipaddress.ip_network(subnet.cidr):
+                    found_subnets.append(subnet)
+
+            if found_subnets:
+                for subnet in found_subnets:
+                    network = ipaddress.ip_network(subnet.cidr)
+                    usable_hosts = list(network.hosts())
+                    results.append({
+                        "subnet": subnet,
+                        "network_address": network.network_address,
+                        "broadcast_address": network.broadcast_address,
+                        "total_ips": network.num_addresses,
+                        "usable_ips_count": len(usable_hosts),
+                        "usable_range": f"{usable_hosts[0]} - {usable_hosts[-1]}" if usable_hosts else "N/A",
+                        "all_usable_ips": usable_hosts,
+                    })
+
+        except ValueError:
+            # If it's not a valid IP, treat it as a text search
+            search_type = 'text'
+            from sqlalchemy import or_
+            found_subnets = db.query(models.Subnet).filter(
+                or_(
+                    models.Subnet.cidr.contains(query),
+                    models.Subnet.description.contains(query)
+                )
+            ).all()
+            if found_subnets:
+                for subnet in found_subnets:
+                    results.append({"subnet": subnet}) # Simpler result for text search
+
+        if not results:
+            error = f"No results found for '{query}'."
 
     return templates.TemplateResponse(
         "search_ip.html",
-        {"request": request, "user": user, "results": results}
+        {
+            "request": request,
+            "user": user,
+            "results": results,
+            "query": query,
+            "search_type": search_type,
+            "searched_ip": searched_ip_str,
+            "error": error,
+        }
     )
 @app.get("/dashboard/allocate_ip", response_class=HTMLResponse)
 def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
