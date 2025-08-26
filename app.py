@@ -6,6 +6,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
+import os, re, ipaddress, io, csv
+from starlette.responses import StreamingResponse
 
 import crud, models, schemas
 from database import engine, Base, SessionLocal
@@ -16,6 +18,7 @@ from routes_import import router as import_router
 from routes_allocate import router as allocate_router
 
 from routes_vlan import router as vlan_router
+from utils import parse_config
 
 
 Base.metadata.create_all(bind=engine)
@@ -261,3 +264,101 @@ def allocate_ip_post(
     db.commit()
 
     return RedirectResponse(url="/dashboard/allocate_ip", status_code=303)
+
+
+@app.get("/dashboard/upload_config")
+def upload_config(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})
+
+
+@app.get("/dashboard/upload_config/export")
+def export_config_csv(
+    request: Request,
+    filename: str,
+    view: str = "detailed",             # "detailed" or "summary"
+    db: Session = Depends(get_db),
+):
+    # require login
+    user = get_current_user(request, db)
+
+    # sanitize + locate file
+    safe_name = os.path.basename(filename)
+    path = os.path.join("configs", safe_name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Uploaded file not found")
+
+    # read + parse
+    with open(path, "r") as f:
+        config_text = f.read()
+
+    ip_blocks, used_ips = parse_config(config_text)
+
+    # build CSV
+    buf = io.StringIO()
+    w = csv.writer(buf)
+
+    if view == "summary":
+        # one row per block
+        w.writerow(["block_cidr", "used_ip_count"])
+        for block, ips in sorted(ip_blocks.items(), key=lambda x: x[0]):
+            w.writerow([block, len(ips)])
+        out_name = f"{os.path.splitext(safe_name)[0]}_blocks_summary.csv"
+    else:
+        # one row per IP
+        w.writerow(["block_cidr", "ip"])
+        for block, ips in sorted(ip_blocks.items(), key=lambda x: x[0]):
+            for ip in ips:
+                w.writerow([block, ip])
+        out_name = f"{os.path.splitext(safe_name)[0]}_ip_list.csv"
+
+    buf.seek(0)
+    headers = {"Content-Disposition": f'attachment; filename="{out_name}"'}
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
+
+
+from fastapi import File, UploadFile
+import os, re, ipaddress
+
+# Make sure configs folder exists
+os.makedirs("configs", exist_ok=True)
+
+@app.get("/dashboard/upload_config")
+def upload_config(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})
+
+@app.post("/dashboard/upload_config")
+async def upload_config_post(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    # Read uploaded file
+    content = await file.read()
+    config_text = content.decode("utf-8")
+
+    # Save to configs folder
+    filepath = f"configs/{file.filename}"
+    with open(filepath, "w") as f:
+        f.write(config_text)
+
+    # Parse config
+    ip_blocks, used_ips = parse_config(config_text)
+
+    return templates.TemplateResponse(
+        "upload_result.html",
+        {
+            "request": request,
+            "user": user,
+            "ip_blocks": ip_blocks,
+            "used_ips": used_ips,
+            "filename": file.filename,
+        }
+    )

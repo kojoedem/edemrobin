@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block title %}Upload Result · IP DB{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-2">Parsed Config: {{ filename }}</h1>
+
+<div class="flex gap-3 mb-6">
+  <a href="/dashboard/upload_config/export?filename={{ filename }}&view=detailed"
+     class="bg-gray-900 text-white rounded px-4 py-2 hover:bg-gray-700">Export IPs CSV</a>
+  <a href="/dashboard/upload_config/export?filename={{ filename }}&view=summary"
+     class="bg-white border rounded px-4 py-2 hover:bg-gray-50">Export Block Summary CSV</a>
+</div>
+
+<h2 class="text-lg font-semibold mb-2">IP Blocks Found</h2>
+<div class="bg-white rounded-xl shadow p-4">
+  {% if ip_blocks %}
+    <ul class="list-disc pl-5">
+      {% for block, ips in ip_blocks.items() %}
+      <li class="mb-2">
+        <b>{{ block }}</b> — {{ ips|length }} IPs
+        <ul class="list-disc pl-6 mt-1 text-sm text-gray-700">
+          {% for ip in ips %}
+          <li>{{ ip }}</li>
+          {% endfor %}
+        </ul>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-gray-600">No IPs detected in this config.</p>
+  {% endif %}
+</div>
+{% endblock %}
