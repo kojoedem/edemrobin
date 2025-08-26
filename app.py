@@ -419,23 +419,37 @@ def generate_logo_action(
 
     img = Image.new("RGB", (width, height), bg_rgb)
     draw = ImageDraw.Draw(img)
-    font = ImageFont.load_default(size=100)
+
+    # --- Dynamic Font Sizing ---
+    font_size = 150
+    font = ImageFont.load_default(size=font_size)
 
     text_bbox = draw.textbbox((0, 0), logo_text, font=font)
     text_width = text_bbox[2] - text_bbox[0]
-    text_height = text_bbox[3] - text_bbox[1]
 
+    while text_width > (width - 80) and font_size > 20:
+        font_size -= 5
+        font = ImageFont.load_default(size=font_size)
+        text_bbox = draw.textbbox((0, 0), logo_text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+
+    text_height = text_bbox[3] - text_bbox[1]
     x = (width - text_width) / 2
     y = (height - text_height) / 2
 
+    # --- Improved Effect Colors ---
+    shadow_color = tuple(max(0, c - 40) for c in bg_rgb)
+    highlight_color = tuple(min(255, c + 40) for c in bg_rgb)
+    text_color = (255, 255, 255)
+
     if effect == "engrave":
-        draw.text((x+2, y+2), logo_text, font=font, fill=(0,0,0,100))
-        draw.text((x, y), logo_text, font=font, fill=(255,255,255,128))
+        draw.text((x + 2, y + 2), logo_text, font=font, fill=shadow_color)
+        draw.text((x, y), logo_text, font=font, fill=highlight_color)
     elif effect == "emboss":
-        draw.text((x-2, y-2), logo_text, font=font, fill=(255,255,255,128))
-        draw.text((x, y), logo_text, font=font, fill=(0,0,0,100))
-    else:
-        draw.text((x, y), logo_text, font=font, fill=(255,255,255))
+        draw.text((x - 2, y - 2), logo_text, font=font, fill=highlight_color)
+        draw.text((x, y), logo_text, font=font, fill=shadow_color)
+    else:  # "none"
+        draw.text((x, y), logo_text, font=font, fill=text_color)
 
     logo_path = "static/generated-logo.png"
     img.save(logo_path, "PNG")
@@ -811,16 +825,24 @@ def save_config_to_db(request: Request, filename: str = Form(...), db: Session =
 
         vlan = None
         if iface.get('vlan_id'):
-            vlan = crud.get_vlan_by_id(db, iface['vlan_id'])
+            vlan_id = iface['vlan_id']
+            vlan = crud.get_vlan_by_id(db, vlan_id)
             if not vlan:
-                # Create the VLAN if it doesn't exist, using the interface name
-                vlan_name = iface.get('name', f"VLAN_{iface['vlan_id']}")
-                # To prevent violating unique name constraint, check if name exists
+                # If VLAN with this ID doesn't exist, create it.
+                vlan_name = iface.get('name', f"VLAN_{vlan_id}")
+
+                # To prevent creating a VLAN with a duplicate name, check first.
                 existing_vlan_by_name = db.query(models.VLAN).filter(models.VLAN.name == vlan_name).first()
-                if not existing_vlan_by_name:
-                    vlan = crud.create_vlan(db, vlan_id=iface['vlan_id'], name=vlan_name, created_by=user.username)
+                if existing_vlan_by_name:
+                    print(f"Warning: A VLAN with the name '{vlan_name}' already exists but with a different ID. Skipping VLAN creation for this interface to avoid conflicts.")
                 else:
-                    vlan = existing_vlan_by_name
+                    try:
+                        vlan = crud.create_vlan(db, vlan_id=vlan_id, name=vlan_name, created_by=user.username)
+                    except Exception as e:
+                        print(f"Error creating VLAN {vlan_id}: {e}")
+                        # Potentially a race condition if another process created it.
+                        db.rollback()
+                        vlan = crud.get_vlan_by_id(db, vlan_id)
 
         description = iface['description'] or f"Imported from {iface.get('name', 'config')}"
 
