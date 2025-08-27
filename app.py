@@ -117,7 +117,7 @@ def allocate_ip_action(
     block_id: int = Form(...),
     subnet_size: int = Form(...),
     vlan_id: Optional[int] = Form(None),
-    client_id: Optional[int] = Form(None),
+    client_id: str = Form(""),
     description: str = Form(...),
     description_format: str = Form("uppercase"),
     db: Session = Depends(get_db),
@@ -137,13 +137,14 @@ def allocate_ip_action(
         final_description = description
 
     try:
+        client_id_or_none = int(client_id) if client_id else None
         new_subnet = allocate_subnet(
             db,
             block_id=block_id,
             user=user,
             subnet_size=subnet_size,
             vlan_id=vlan_id,
-            client_id=client_id,
+            client_id=client_id_or_none,
             description=final_description
         )
         return RedirectResponse("/dashboard/allocate_ip?success=1", status_code=303)
@@ -755,7 +756,7 @@ def edit_allocation_action(
     description: str = Form(...),
     vlan_id: Optional[int] = Form(None),
     block_id: int = Form(...),
-    client_id: Optional[int] = Form(None),
+    client_id: str = Form(""),
     db: Session = Depends(get_db),
 ):
     subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
@@ -770,7 +771,7 @@ def edit_allocation_action(
     subnet.description = description
     subnet.vlan_id = vlan_id
     subnet.block_id = block_id
-    subnet.client_id = client_id
+    subnet.client_id = int(client_id) if client_id else None
 
     # If moving to a real block from unassigned, mark as allocated
     if subnet.status == models.SubnetStatus.inactive and new_block.cidr != "Unassigned":
@@ -829,6 +830,26 @@ def reactivate_allocation_action(
     db.commit()
 
     return RedirectResponse(url="/dashboard/churned", status_code=303)
+
+
+@app.get("/dashboard/nat_ips", response_class=HTMLResponse)
+@login_required
+def nat_ips_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    nat_subnets = db.query(models.Subnet).options(
+        joinedload(models.Subnet.block),
+        joinedload(models.Subnet.vlan),
+        joinedload(models.Subnet.client)
+    ).filter(models.Subnet.status == models.SubnetStatus.nat).order_by(models.Subnet.id.desc()).all()
+
+    return templates.TemplateResponse(
+        "nat_ips.html",
+        {
+            "request": request,
+            "user": user,
+            "nat_subnets": nat_subnets,
+        }
+    )
 
 
 @app.post("/dashboard/allocations/{subnet_id}/activate")
