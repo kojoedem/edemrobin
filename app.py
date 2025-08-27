@@ -62,9 +62,9 @@ def home(request: Request, block_id: Optional[int] = None, db: Session = Depends
 
     # Get blocks this user is allowed to see for the stats cards
     if user.is_admin:
-        blocks_for_stats = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+        blocks_for_stats = db.query(models.IPBlock).filter(models.IPBlock.cidr != 'Unassigned').order_by(models.IPBlock.cidr).all()
     else:
-        blocks_for_stats = user.allowed_blocks
+        blocks_for_stats = [b for b in user.allowed_blocks if b.cidr != 'Unassigned']
         blocks_for_stats.sort(key=lambda x: ipaddress.ip_network(x.cidr))
 
     block_stats = []
