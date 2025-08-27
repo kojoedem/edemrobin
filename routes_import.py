@@ -23,27 +23,6 @@ def import_cisco_config(
     parent_blocks: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    """
-    Imports a Cisco configuration file, parsing interfaces, subnets, and routes.
-
-    This is a multi-pass import process:
-    1.  **First Pass (Collection):**
-        - Reads the config file and identifies all necessary parent objects.
-        - Collects required IP blocks, VLANs (from interface descriptions), and clients (from all interface descriptions).
-    2.  **Creation Phase:**
-        - Creates all collected parent objects in the database if they don't already exist.
-        - Clients are created as 'inactive' by default.
-    3.  **Second Pass (NAT IPs):**
-        - Parses `ip route` commands to identify static routes used for NAT.
-        - Creates `NatIp` objects and associates them with the client identified by the route's egress interface description.
-    4.  **Third Pass (Interface Subnets):**
-        - Parses all `interface` sections.
-        - Creates `Subnet` objects for each IP address found.
-        - Assigns subnets to the user-provided parent blocks. If a subnet doesn't fit, it's assigned to the 'Unassigned' block and marked 'inactive'.
-        - If an interface is `shutdown`, the corresponding subnet is marked 'deactivated'.
-
-    Requires admin privileges.
-    """
     user = get_current_user(request, db)
 
     if not file.filename.lower().endswith((".txt", ".cfg", ".conf")):
