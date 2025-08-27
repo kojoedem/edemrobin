@@ -44,6 +44,7 @@ def import_cisco_config(
     hostname = hostname[0].split()[1] if hostname else f"device-{file.filename}"
 
     device = crud.get_or_create_device_no_commit(db, hostname=hostname)
+    db.flush()  # Flush to get the device ID before creating interfaces
     device_cache[hostname] = device
 
     # Get or create the 'Unassigned' block
