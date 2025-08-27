@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% block title %}Admin Clients - EDEMROBIN{% endblock %}
+{% block title %}Admin Clients - IPAM{% endblock %}
 
 {% block content %}
 <div class="mb-6 border-b border-slate-200 pb-4">
@@ -7,10 +7,10 @@
   <p class="text-slate-500">Create and manage clients to associate with subnets.</p>
 </div>
 
-{% if request.query_params.error %}
+{% if error or request.query_params.error %}
 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
   <strong class="font-bold">Error:</strong>
-  <span class="block sm:inline">{{ request.query_params.error }}</span>
+  <span class="block sm:inline">{{ error or request.query_params.error }}</span>
 </div>
 {% endif %}
 

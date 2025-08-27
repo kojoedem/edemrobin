@@ -1,29 +1,32 @@
 {% extends "layout.html" %}
-{% block title %}Client Details - {{ client.name }} - EDEMROBIN{% endblock %}
+{% block title %}{{ client.name }} - Client Details{% endblock %}
 
 {% block content %}
 <div class="mb-6 border-b border-slate-200 pb-4">
-  <h1 class="text-2xl font-bold text-slate-700">Client: <span class="text-sky-600">{{ client.name }}</span></h1>
-  <p class="text-slate-500">Viewing all subnets assigned to this client.</p>
+  <a href="/admin/clients" class="text-sm text-sky-600 hover:underline">&larr; Back to All Clients</a>
+  <h1 class="text-2xl font-bold text-slate-700 mt-2">{{ client.name }}</h1>
+  <p class="text-slate-500">Details for this client.</p>
 </div>
 
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+<!-- Associated Subnets -->
+<h2 class="text-xl font-semibold text-slate-600 mb-4">Associated Subnets</h2>
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto mb-8">
   <table class="min-w-full">
     <thead class="bg-slate-50">
       <tr>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">Subnet</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">Parent Block</th>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">VLAN</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">Status</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Actions</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-200">
       {% for subnet in subnets %}
       <tr class="hover:bg-slate-50">
         <td class="p-4 font-mono text-sm">{{ subnet.cidr }}</td>
-        <td class="p-4 font-mono text-sm text-slate-500">{{ subnet.block.cidr }}</td>
+        <td class="p-4 text-sm text-slate-600">{{ subnet.description }}</td>
+        <td class="p-4 text-sm text-slate-500">{{ subnet.block.cidr }}</td>
         <td class="p-4 text-sm">
           {% if subnet.vlan %}
             {{ subnet.vlan.vlan_id }} - {{ subnet.vlan.name }}
@@ -31,66 +34,46 @@
             <span class="text-slate-400">-</span>
           {% endif %}
         </td>
-        <td class="p-4 text-sm text-slate-600">{{ subnet.description }}</td>
         <td class="p-4 text-sm">
-          {% if subnet.status.name == 'inactive' %}
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-              Inactive
-            </span>
-          {% elif subnet.status.name == 'allocated' %}
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-              Active
-            </span>
-          {% elif subnet.status.name == 'nat' %}
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-              NAT
-            </span>
-           {% elif subnet.status.name == 'deactivated' %}
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-              Deactivated
-            </span>
-          {% else %}
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+            {% if subnet.status.name == 'allocated' %}bg-green-100 text-green-800
+            {% elif subnet.status.name == 'inactive' %}bg-yellow-100 text-yellow-800
+            {% elif subnet.status.name == 'deactivated' %}bg-red-100 text-red-800
+            {% else %}bg-gray-100 text-gray-800{% endif %}">
               {{ subnet.status.name|capitalize }}
-            </span>
-          {% endif %}
-        </td>
-        <td class="p-4 text-sm">
-          <a href="/dashboard/allocations/{{ subnet.id }}/edit" class="text-sky-600 hover:underline font-semibold">Edit</a>
+          </span>
         </td>
       </tr>
       {% endfor %}
       {% if not subnets %}
-      <tr><td colspan="6" class="p-6 text-center text-slate-500">No subnets assigned to this client yet.</td></tr>
+      <tr><td colspan="5" class="p-6 text-center text-slate-500">No subnets are associated with this client.</td></tr>
       {% endif %}
     </tbody>
   </table>
 </div>
 
-<div class="mt-8">
-    <h2 class="text-xl font-semibold text-slate-600 mb-4">Assigned NAT IPs</h2>
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
-        <table class="min-w-full">
-            <thead class="bg-slate-50">
-                <tr>
-                    <th class="text-left p-4 text-sm font-semibold text-slate-600">NAT IP Address</th>
-                    <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
-                    <th class="text-left p-4 text-sm font-semibold text-slate-600">Created At</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-200">
-                {% for nat_ip in nat_ips %}
-                <tr class="hover:bg-slate-50">
-                    <td class="p-4 font-mono text-sm">{{ nat_ip.ip_address }}</td>
-                    <td class="p-4 text-sm text-slate-600">{{ nat_ip.description or "-" }}</td>
-                    <td class="p-4 text-sm text-slate-500">{{ nat_ip.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-                </tr>
-                {% endfor %}
-                {% if not nat_ips %}
-                <tr><td colspan="3" class="p-6 text-center text-slate-500">No NAT IPs assigned to this client.</td></tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
+<!-- Associated NAT IPs -->
+<h2 class="text-xl font-semibold text-slate-600 mb-4">Associated NAT IPs</h2>
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-slate-50">
+      <tr>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">IP Address</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-200">
+      {% for nat_ip in nat_ips %}
+      <tr class="hover:bg-slate-50">
+        <td class="p-4 font-mono text-sm">{{ nat_ip.ip_address }}</td>
+        <td class="p-4 text-sm text-slate-600">{{ nat_ip.description }}</td>
+      </tr>
+      {% endfor %}
+      {% if not nat_ips %}
+      <tr><td colspan="2" class="p-6 text-center text-slate-500">No NAT IPs are associated with this client.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
 </div>
+
 {% endblock %}

@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from typing import Optional
 
-import crud
 from models import IPBlock, Subnet, User, SubnetStatus
 
 def allocate_subnet(
@@ -12,7 +11,6 @@ def allocate_subnet(
     user: User,
     subnet_size: int,
     vlan_id: Optional[int] = None,
-    client_id: Optional[int] = None,
     description: str="",
 ):
     """
@@ -41,16 +39,18 @@ def allocate_subnet(
 
         # If it doesn't overlap, we've found our available subnet
         if not is_overlapping:
-            return crud.create_or_get_subnet(
-                db,
+            new_allocation = Subnet(
                 cidr=str(candidate_subnet),
-                block=block,
                 status=SubnetStatus.allocated,
                 vlan_id=vlan_id,
-                client_id=client_id,
                 description=description,
                 created_by=user.username,
+                block_id=block.id,
             )
+            db.add(new_allocation)
+            db.commit()
+            db.refresh(new_allocation)
+            return new_allocation
 
     # If the loop completes, no available subnet was found
     raise HTTPException(status_code=400, detail="No available subnets of this size in the block")

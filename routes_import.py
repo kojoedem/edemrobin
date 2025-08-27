@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ciscoconfparse import CiscoConfParse
 
 from database import get_db
-from models import SubnetStatus, User
+from models import SubnetStatus, User, IPBlock, NatIp
 import crud
 from security import get_current_user
 
@@ -29,10 +29,10 @@ def import_cisco_config(
     This is a multi-pass import process:
     1.  **First Pass (Collection):**
         - Reads the config file and identifies all necessary parent objects.
-        - Collects required IP blocks, VLANs (from interface descriptions), and clients (from route-map interface descriptions).
+        - Collects required IP blocks, VLANs (from interface descriptions), and clients (from all interface descriptions).
     2.  **Creation Phase:**
         - Creates all collected parent objects in the database if they don't already exist.
-        - This ensures that when subnets and IPs are imported, their parent relations can be established without integrity errors.
+        - Clients are created as 'inactive' by default.
     3.  **Second Pass (NAT IPs):**
         - Parses `ip route` commands to identify static routes used for NAT.
         - Creates `NatIp` objects and associates them with the client identified by the route's egress interface description.
@@ -53,7 +53,6 @@ def import_cisco_config(
     parse = CiscoConfParse(io.StringIO(content).read().splitlines(), factory=True)
 
     # --- First Pass: Collect all required parent objects ---
-
     required_parent_cidrs = set()
     required_client_names = set()
     interface_to_description = {}
@@ -78,6 +77,12 @@ def import_cisco_config(
         if desc_line:
             description = desc_line[0].text.strip().split(None, 1)[1]
         interface_to_description[name] = description
+
+        # Collect all descriptions as potential clients
+        if description:
+            required_client_names.add(description)
+
+        # Collect VLAN info
         if '.' in name:
             try:
                 vlan_num = int(name.split('.')[-1])
@@ -86,13 +91,7 @@ def import_cisco_config(
             except ValueError:
                 pass
 
-    # Collect client names from all interface descriptions
-    for description in interface_to_description.values():
-        if description:
-            required_client_names.add(description)
-
     # --- Creation Phase: Ensure all parent objects exist ---
-
     hostname = parse.find_lines(r"^hostname\s+")
     hostname = hostname[0].split()[1] if hostname else f"device-{file.filename}"
     device = crud.get_or_create_device(db, hostname=hostname)
@@ -111,7 +110,8 @@ def import_cisco_config(
         crud.get_or_create_client(db, name=name, is_active=False)
 
     # --- Second Pass: Import NAT IPs ---
-
+    # [BUG FIX] Define route_lines before this pass
+    route_lines = parse.find_lines(r"^ip\s+route\s+")
     for line in route_lines:
         parts = line.split()
         ip_to_check = ""
@@ -131,16 +131,13 @@ def import_cisco_config(
                 if client:
                     try:
                         nat_ip_cidr = f"{ip_to_check}/32"
-                        # Simple get_or_create logic for NAT IPs to avoid duplicates
-                        existing_nat = db.query(crud.NatIp).filter_by(ip_address=nat_ip_cidr).first()
+                        existing_nat = db.query(NatIp).filter_by(ip_address=nat_ip_cidr).first()
                         if not existing_nat:
                             crud.create_nat_ip(db, ip_address=nat_ip_cidr, client_id=client.id, description="Imported from route")
                     except Exception:
                         db.rollback()
 
     # --- Third Pass: Import interface subnets ---
-
-    imported = 0
     for intf in intfs:
         name = intf.text.split(None, 1)[1].strip()
         iface = crud.get_or_create_interface(db, device, name)
@@ -168,10 +165,9 @@ def import_cisco_config(
                         status = SubnetStatus.inactive
 
                     parent_cidr = str(assigned_parent) if assigned_parent else "Unassigned"
-                    parent_block_obj = db.query(crud.IPBlock).filter(crud.IPBlock.cidr == parent_cidr).first()
+                    parent_block_obj = db.query(IPBlock).filter(IPBlock.cidr == parent_cidr).first()
 
                     if parent_block_obj is None:
-                        print(f"ERROR: Could not find parent block for CIDR {parent_cidr}. Skipping subnet {network}.")
                         continue
 
                     subnet = crud.create_or_get_subnet(
@@ -180,9 +176,7 @@ def import_cisco_config(
                         client_id=client.id if client else None,
                         description=description
                     )
-
                     crud.add_interface_address(db, iface, ip=ip, prefix=network.prefixlen, subnet_id=subnet.id)
-                    imported += 1
 
                 except ValueError:
                     continue

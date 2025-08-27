@@ -8,18 +8,6 @@
     <p class="text-slate-500">Update the details for this subnet.</p>
 </div>
 
-{% if subnet.status.name == 'inactive' %}
-<div class="bg-amber-50 border-l-4 border-amber-400 text-amber-800 p-4 rounded-md mb-6 shadow-sm" role="alert">
-  <div class="flex">
-    <div class="py-1"><svg class="fill-current h-6 w-6 text-amber-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM9 5v6h2V5H9zm0 8v2h2v-2H9z"/></svg></div>
-    <div>
-      <p class="font-bold">This subnet is inactive.</p>
-      <p class="text-sm">It was imported without a matching parent block. Please assign it to a valid block to activate it.</p>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 max-w-2xl mx-auto">
   <form method="post" action="/dashboard/allocations/{{ subnet.id }}/edit" class="space-y-4">
 
@@ -35,29 +23,6 @@
         {% for vlan in vlans %}
           <option value="{{ vlan.id }}" {% if subnet.vlan_id == vlan.id %}selected{% endif %}>
             {{ vlan.vlan_id }} - {{ vlan.name }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div>
-      <label for="block_id" class="text-sm font-medium text-slate-600 block mb-1">Parent Block</label>
-      <select name="block_id" id="block_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
-        {% for block in blocks %}
-          <option value="{{ block.id }}" {% if subnet.block_id == block.id %}selected{% endif %}>
-            {{ block.cidr }} {% if block.description %}({{ block.description }}){% endif %}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div>
-      <label for="client_id" class="text-sm font-medium text-slate-600 block mb-1">Client (optional)</label>
-      <select name="client_id" id="client_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
-        <option value="">-- No Client --</option>
-        {% for client in clients %}
-          <option value="{{ client.id }}" {% if subnet.client_id == client.id %}selected{% endif %}>
-            {{ client.name }}
           </option>
         {% endfor %}
       </select>
