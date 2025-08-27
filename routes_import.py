@@ -141,6 +141,10 @@ def import_cisco_config(
                     parent_cidr = str(assigned_parent) if assigned_parent else "Unassigned"
                     parent_block_obj = db.query(crud.IPBlock).filter(crud.IPBlock.cidr == parent_cidr).first()
 
+                    if parent_block_obj is None:
+                        print(f"ERROR: Could not find parent block for CIDR {parent_cidr}. Skipping subnet {network}.")
+                        continue
+
                     subnet = crud.create_or_get_subnet(
                         db, str(network.with_prefixlen), parent_block_obj,
                         status=status, created_by=user.username,
