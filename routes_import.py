@@ -1,6 +1,6 @@
 import io
 import ipaddress
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, Form
 from sqlalchemy.orm import Session
 from ciscoconfparse import CiscoConfParse
 
@@ -8,7 +8,6 @@ from database import get_db
 from models import SubnetStatus, User
 import crud
 from security import get_current_user
-from utils import group_networks_by_supernet
 
 router = APIRouter(prefix="/import", tags=["Import"])
 
@@ -22,6 +21,7 @@ def require_admin(user: User = Depends(get_current_user)):
 def import_cisco_config(
     request: Request,
     file: UploadFile = File(...),
+    parent_blocks: str = Form(...),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
@@ -42,11 +42,26 @@ def import_cisco_config(
 
     device = crud.get_or_create_device(db, hostname=hostname)
 
+    # Get or create the 'Unassigned' block for IPs that don't fit into specified parents
+    unassigned_block = crud.get_or_create_block(db, "Unassigned", description="For imported subnets that do not fit into any specified parent block.")
+
+    # Parse parent blocks from form input
+    parent_networks = []
+    if parent_blocks:
+        cidrs = [cidr.strip() for cidr in parent_blocks.split(",")]
+        for cidr in cidrs:
+            try:
+                parent_networks.append(ipaddress.ip_network(cidr))
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid CIDR format: {cidr}")
+
     intfs = parse.find_objects(r"^interface\s+")
-    networks = []
+    networks_to_process = []
     for intf in intfs:
         name = intf.text.split(None, 1)[1].strip()
         iface = crud.get_or_create_interface(db, device, name)
+
+        is_shutdown = intf.is_shutdown
 
         description = ""
         desc_line = intf.re_search_children(r"^\s+description\s+")
@@ -55,51 +70,57 @@ def import_cisco_config(
 
         ip_lines = intf.re_search_children(r"^\s+ip address\s+")
         for l in ip_lines:
-            # Example: " ip address 192.168.10.1 255.255.255.0"
             parts = l.text.strip().split()
             if len(parts) >= 4:
                 ip = parts[2]
                 mask = parts[3]
                 try:
                     network = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
-                    networks.append(
-                        {"network": network, "iface": iface, "ip": ip, "description": description}
-                    )
+                    networks_to_process.append({
+                        "network": network, "iface": iface, "ip": ip,
+                        "description": description, "is_shutdown": is_shutdown
+                    })
                 except ValueError:
                     continue
 
     imported = 0
-    if networks:
-        # Group networks by their /24 supernet
-        nets_to_summarize = [n["network"] for n in networks]
-        grouped_networks = group_networks_by_supernet(nets_to_summarize, prefixlen=24)
+    if networks_to_process:
+        for net_info in networks_to_process:
+            network = net_info["network"]
 
-        # Create blocks and subnets for each group
-        for supernet_cidr, sub_nets in grouped_networks.items():
-            parent_block = crud.get_or_create_block(
-                db, supernet_cidr, created_by=user.username, description="auto-import-cisco"
+            # Find parent block
+            assigned_parent = None
+            for p_net in parent_networks:
+                if network.subnet_of(p_net):
+                    assigned_parent = p_net
+                    break
+
+            # Determine status
+            if net_info["is_shutdown"]:
+                status = SubnetStatus.deactivated
+            elif assigned_parent is None:
+                status = SubnetStatus.inactive
+            else:
+                status = SubnetStatus.imported
+
+            # Determine parent block for DB
+            if assigned_parent:
+                parent_block_obj = crud.get_or_create_block(db, str(assigned_parent), created_by=user.username)
+            else:
+                parent_block_obj = unassigned_block
+
+            # Create subnet
+            subnet = crud.create_or_get_subnet(
+                db,
+                str(network.with_prefixlen),
+                parent_block_obj,
+                status=status,
+                created_by=user.username,
+                description=net_info["description"]
             )
 
-            # Create subnets within this block
-            net_infos_in_group = [n for n in networks if n["network"] in sub_nets]
-
-            for net_info in net_infos_in_group:
-                network = net_info["network"]
-                iface = net_info["iface"]
-                ip = net_info["ip"]
-                description = net_info["description"]
-
-                subnet = crud.create_or_get_subnet(
-                    db,
-                    str(network.with_prefixlen),
-                    parent_block,
-                    status=SubnetStatus.imported,
-                    created_by=user.username,
-                    description=description,
-                )
-
-                # Add the interface address record
-                crud.add_interface_address(db, iface, ip=str(ip), prefix=network.prefixlen, subnet_id=subnet.id)
-                imported += 1
+            # Add the interface address record
+            crud.add_interface_address(db, net_info["iface"], ip=net_info["ip"], prefix=network.prefixlen, subnet_id=subnet.id)
+            imported += 1
 
     return {"msg": f"Imported {imported} interface IP(s) from {file.filename}", "device": device.hostname}
