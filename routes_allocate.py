@@ -20,6 +20,14 @@ def allocate_subnet(
     description: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
+    """
+    Finds and allocates the next available subnet of a given prefix within a parent block.
+
+    - Iterates through the parent block to find a subnet of the requested size that does not overlap with any existing allocations.
+    - Requires user to have at least level 2 privileges.
+    - If a free subnet is found, it's created in the database and returned.
+    - If no space is available, it raises an HTTPException.
+    """
     user = get_current_user(request, db)
     block: IPBlock | None = db.query(IPBlock).filter(IPBlock.id == block_id).first()
     if not block:

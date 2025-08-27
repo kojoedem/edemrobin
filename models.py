@@ -35,6 +35,7 @@ class Client(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False, server_default="true")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     subnets = relationship("Subnet", back_populates="client")

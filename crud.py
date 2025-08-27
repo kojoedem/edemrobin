@@ -23,8 +23,8 @@ def create_user(db: Session, username: str, password: str, level: int = 1, is_ad
 
 
 # ---------- Clients ----------
-def create_client(db: Session, name: str) -> Client:
-    client = Client(name=name)
+def create_client(db: Session, name: str, is_active: bool = True) -> Client:
+    client = Client(name=name, is_active=is_active)
     db.add(client)
     db.commit()
     db.refresh(client)
@@ -49,11 +49,11 @@ def delete_client(db: Session, client_id: int):
         db.commit()
     return client
 
-def get_or_create_client(db: Session, name: str) -> Client:
+def get_or_create_client(db: Session, name: str, is_active: bool = True) -> Client:
     client = get_client_by_name(db, name)
     if client:
         return client
-    return create_client(db, name)
+    return create_client(db, name, is_active=is_active)
 
 
 # ---------- NAT IPs ----------
