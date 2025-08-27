@@ -327,7 +327,9 @@ def client_detail_page(request: Request, client_id: int, db: Session = Depends(g
         joinedload(models.Subnet.vlan)
     ).filter(models.Subnet.client_id == client_id).order_by(models.Subnet.id.desc()).all()
 
-    return templates.TemplateResponse("client_detail.html", {"request": request, "user": user, "client": client, "subnets": subnets})
+    nat_ips = crud.list_nat_ips_for_client(db, client_id)
+
+    return templates.TemplateResponse("client_detail.html", {"request": request, "user": user, "client": client, "subnets": subnets, "nat_ips": nat_ips})
 
 
 @app.get("/admin/blocks")

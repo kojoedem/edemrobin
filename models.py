@@ -38,6 +38,19 @@ class Client(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     subnets = relationship("Subnet", back_populates="client")
+    nat_ips = relationship("NatIp", back_populates="client")
+
+
+class NatIp(Base):
+    __tablename__ = "nat_ips"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ip_address = Column(String, unique=True, nullable=False)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    client = relationship("Client", back_populates="nat_ips")
 
 
 class VLAN(Base):

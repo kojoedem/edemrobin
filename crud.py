@@ -2,7 +2,7 @@
 import ipaddress
 from sqlalchemy.orm import Session
 from models import (
-    User, VLAN, IPBlock, Subnet, SubnetStatus, Device, Interface, InterfaceAddress, Client
+    User, VLAN, IPBlock, Subnet, SubnetStatus, Device, Interface, InterfaceAddress, Client, NatIp
 )
 from security import hash_password
 
@@ -48,6 +48,24 @@ def delete_client(db: Session, client_id: int):
         db.delete(client)
         db.commit()
     return client
+
+def get_or_create_client(db: Session, name: str) -> Client:
+    client = get_client_by_name(db, name)
+    if client:
+        return client
+    return create_client(db, name)
+
+
+# ---------- NAT IPs ----------
+def create_nat_ip(db: Session, ip_address: str, client_id: int, description: str | None = None) -> NatIp:
+    nat_ip = NatIp(ip_address=ip_address, client_id=client_id, description=description)
+    db.add(nat_ip)
+    db.commit()
+    db.refresh(nat_ip)
+    return nat_ip
+
+def list_nat_ips_for_client(db: Session, client_id: int) -> list[NatIp]:
+    return db.query(NatIp).filter(NatIp.client_id == client_id).all()
 
 
 # ---------- VLAN ----------
