@@ -1,51 +1,37 @@
 {% extends "layout.html" %}
-{% block title %}NAT IPs - EDEMROBIN{% endblock %}
+{% block title %}NAT IPs - IPAM{% endblock %}
 
 {% block content %}
 <div class="mb-6 border-b border-slate-200 pb-4">
-  <h1 class="text-2xl font-bold text-slate-700">NAT IPs</h1>
-  <p class="text-slate-500">This is a list of all subnets that have been identified as being used for NAT.</p>
+  <h1 class="text-2xl font-bold text-slate-700">Imported NAT IPs</h1>
+  <p class="text-slate-500">This is a list of all single IP addresses identified from `ip route` commands during a config import.</p>
 </div>
 
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
   <table class="min-w-full">
     <thead class="bg-slate-50">
       <tr>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Subnet</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Client</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Parent Block</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">VLAN</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Actions</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">IP Address</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Associated Client</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Import Description</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-200">
-      {% for subnet in nat_subnets %}
+      {% for nat_ip in nat_ips %}
       <tr class="hover:bg-slate-50">
-        <td class="p-4 font-mono text-sm">{{ subnet.cidr }}</td>
+        <td class="p-4 font-mono text-sm">{{ nat_ip.ip_address }}</td>
         <td class="p-4 text-sm">
-          {% if subnet.client %}
-            <a href="/clients/{{ subnet.client.id }}" class="text-sky-600 hover:underline">{{ subnet.client.name }}</a>
+          {% if nat_ip.client %}
+            <a href="/clients/{{ nat_ip.client.id }}" class="text-sky-600 hover:underline">{{ nat_ip.client.name }}</a>
           {% else %}
             <span class="text-slate-400">-</span>
           {% endif %}
         </td>
-        <td class="p-4 text-sm text-slate-600">{{ subnet.description }}</td>
-        <td class="p-4 font-mono text-sm text-slate-500">{{ subnet.block.cidr }}</td>
-        <td class="p-4 text-sm">
-          {% if subnet.vlan %}
-            {{ subnet.vlan.vlan_id }} - {{ subnet.vlan.name }}
-          {% else %}
-            <span class="text-slate-400">-</span>
-          {% endif %}
-        </td>
-        <td class="p-4 text-sm">
-          <a href="/dashboard/allocations/{{ subnet.id }}/edit" class="text-sky-600 hover:underline font-semibold">Edit</a>
-        </td>
+        <td class="p-4 text-sm text-slate-600">{{ nat_ip.description }}</td>
       </tr>
       {% endfor %}
-      {% if not nat_subnets %}
-      <tr><td colspan="6" class="p-6 text-center text-slate-500">No NAT subnets found.</td></tr>
+      {% if not nat_ips %}
+      <tr><td colspan="3" class="p-6 text-center text-slate-500">No NAT IPs found. They are created during a Cisco config import.</td></tr>
       {% endif %}
     </tbody>
   </table>

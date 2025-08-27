@@ -7,6 +7,26 @@
   <p class="text-slate-500">Overview of your network resources.</p>
 </div>
 
+<!-- Stat Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+  <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total VLANs</h3>
+    <p class="text-3xl font-bold text-slate-800 mt-1">{{ vlan_count }}</p>
+  </div>
+  <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+    <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Active Clients</h3>
+    <p class="text-3xl font-bold text-slate-800 mt-1">{{ active_client_count }}</p>
+  </div>
+</div>
+
+<!-- Search Bar -->
+<div class="my-6">
+    <form action="/dashboard/search" method="get" class="flex items-center max-w-2xl mx-auto">
+        <input type="search" name="query" placeholder="Search by IP, Subnet, Client, VLAN..." class="w-full px-4 py-2 border border-slate-300 rounded-l-lg shadow-sm focus:ring-sky-500 focus:border-sky-500" value="{{ query or '' }}" required>
+        <button type="submit" class="bg-slate-800 text-white font-semibold px-6 py-2 rounded-r-lg hover:bg-slate-700 transition">Search</button>
+    </form>
+</div>
+
 <!-- Block Utilization Stats -->
 <h2 class="text-xl font-semibold text-slate-600 mb-4">Block Utilization</h2>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -89,7 +109,7 @@
             </span>
           {% endif %}
         </td>
-        <td class="p-4 text-sm">
+        <td class="p-4 text-sm whitespace-nowrap">
           {% if alloc.status.name == 'inactive' and user.level >= 2 %}
             <form action="/dashboard/allocations/{{ alloc.id }}/activate" method="post" class="inline-block">
                 <button type="submit" class="text-green-600 hover:underline font-semibold">Activate</button>
@@ -97,7 +117,10 @@
           {% elif user.is_admin %}
             <a href="/dashboard/allocations/{{ alloc.id }}/edit" class="text-sky-600 hover:underline font-semibold">Edit</a>
             <form action="/dashboard/allocations/{{ alloc.id }}/deactivate" method="post" class="inline-block ml-3" onsubmit="return confirm('Are you sure you want to deactivate this subnet?');">
-                <button type="submit" class="text-red-600 hover:underline font-semibold">Deactivate</button>
+                <button type="submit" class="text-orange-600 hover:underline font-semibold">Deactivate</button>
+            </form>
+            <form action="/dashboard/allocations/{{ alloc.id }}/delete" method="post" class="inline-block ml-3" onsubmit="return confirm('Are you sure you want to PERMANENTLY DELETE this subnet? This action cannot be undone.');">
+                <button type="submit" class="text-red-600 hover:underline font-semibold">Delete</button>
             </form>
           {% else %}
             <span class="text-slate-400">-</span>

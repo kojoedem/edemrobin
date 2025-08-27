@@ -23,13 +23,34 @@ def import_cisco_config(
     parent_blocks: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """
+    Imports a Cisco configuration file, parsing interfaces, subnets, and routes.
+
+    This is a multi-pass import process:
+    1.  **First Pass (Collection):**
+        - Reads the config file and identifies all necessary parent objects.
+        - Collects required IP blocks, VLANs (from interface descriptions), and clients (from route-map interface descriptions).
+    2.  **Creation Phase:**
+        - Creates all collected parent objects in the database if they don't already exist.
+        - This ensures that when subnets and IPs are imported, their parent relations can be established without integrity errors.
+    3.  **Second Pass (NAT IPs):**
+        - Parses `ip route` commands to identify static routes used for NAT.
+        - Creates `NatIp` objects and associates them with the client identified by the route's egress interface description.
+    4.  **Third Pass (Interface Subnets):**
+        - Parses all `interface` sections.
+        - Creates `Subnet` objects for each IP address found.
+        - Assigns subnets to the user-provided parent blocks. If a subnet doesn't fit, it's assigned to the 'Unassigned' block and marked 'inactive'.
+        - If an interface is `shutdown`, the corresponding subnet is marked 'deactivated'.
+
+    Requires admin privileges.
+    """
     user = get_current_user(request, db)
 
     if not file.filename.lower().endswith((".txt", ".cfg", ".conf")):
         raise HTTPException(status_code=400, detail="Please upload a Cisco config text file")
 
     content = file.file.read().decode(errors="ignore")
-    parse = CiscoConfParse(io.StringIO(content).read().splitlines())
+    parse = CiscoConfParse(io.StringIO(content).read().splitlines(), factory=True)
 
     # --- First Pass: Collect all required parent objects ---
 
@@ -65,22 +86,10 @@ def import_cisco_config(
             except ValueError:
                 pass
 
-    route_lines = parse.find_lines(r"^ip\s+route\s+")
-    for line in route_lines:
-        parts = line.split()
-        iface_name = ""
-        # ip route vrf <vrf> <dest> <mask> <iface> ...
-        if len(parts) >= 3 and parts[2] == "vrf":
-            if len(parts) >= 7:
-                iface_name = parts[6]
-        # ip route <dest> <mask> <iface> ...
-        elif len(parts) >= 5:
-            iface_name = parts[4]
-
-        if iface_name:
-            client_name = interface_to_description.get(iface_name)
-            if client_name:
-                required_client_names.add(client_name)
+    # Collect client names from all interface descriptions
+    for description in interface_to_description.values():
+        if description:
+            required_client_names.add(description)
 
     # --- Creation Phase: Ensure all parent objects exist ---
 
@@ -97,8 +106,9 @@ def import_cisco_config(
         vlan_name = description if description else f"VLAN-{vlan_num}"
         crud.get_or_create_vlan(db, vlan_id=vlan_num, created_by=user.username, name=vlan_name)
 
+    # Create clients from descriptions, but set them as inactive by default
     for name in required_client_names:
-        crud.get_or_create_client(db, name=name)
+        crud.get_or_create_client(db, name=name, is_active=False)
 
     # --- Second Pass: Import NAT IPs ---
 

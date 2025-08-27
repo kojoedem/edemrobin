@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{% block title %}EDEMROBIN{% endblock %}</title>
+  <title>{% block title %}IPAM{% endblock %}</title>
   <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -11,7 +11,7 @@
   <!-- Sidebar -->
   <aside class="w-64 bg-slate-800 text-slate-300 flex-shrink-0 h-screen p-4 flex flex-col">
     <div class="mb-8 px-2">
-      <a href="/" class="text-2xl font-bold tracking-wider text-white hover:text-gray-200">EDEM<span class="text-sky-400">ROBIN</span></a>
+      <a href="/" class="text-2xl font-bold tracking-wider text-white hover:text-gray-200">IP<span class="text-sky-400">AM</span></a>
     </div>
 
     {% if request.state.settings.get('logo_path') %}
@@ -31,8 +31,6 @@
       <nav class="flex-grow">
         <ul class="space-y-2 text-slate-200">
           <li><a href="/" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏠 Dashboard</a></li>
-          <li><a href="/dashboard/search_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔍 Search IP</a></li>
-          <li><a href="/dashboard/search_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔍 Search VLAN</a></li>
           {% if user.level >= 2 %}
           <li><a href="/dashboard/add_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Add VLAN</a></li>
           <li><a href="/dashboard/allocate_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Allocate IP</a></li>
