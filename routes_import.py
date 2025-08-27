@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ciscoconfparse import CiscoConfParse
 
 from database import get_db
-from models import SubnetStatus, User
+from models import SubnetStatus, User, Device, Interface, VLAN, IPBlock
 import crud
 from security import get_current_user
 
@@ -33,18 +33,22 @@ def import_cisco_config(
     content = file.file.read().decode(errors="ignore")
     parse = CiscoConfParse(io.StringIO(content).read().splitlines())
 
-    # Guess hostname if present
-    hostname = None
-    h = parse.find_lines(r"^hostname\s+")
-    if h:
-        hostname = h[0].split()[1]
-    if not hostname:
-        hostname = f"device-{file.filename}"
+    # --- Caching dictionaries to prevent duplicate object creation within a single transaction ---
+    device_cache: dict[str, Device] = {}
+    interface_cache: dict[str, Interface] = {}
+    vlan_cache: dict[int, VLAN] = {}
+    block_cache: dict[str, IPBlock] = {}
+
+    # Guess hostname
+    hostname = parse.find_lines(r"^hostname\s+")
+    hostname = hostname[0].split()[1] if hostname else f"device-{file.filename}"
 
     device = crud.get_or_create_device_no_commit(db, hostname=hostname)
+    device_cache[hostname] = device
 
-    # Get or create the 'Unassigned' block for IPs that don't fit into specified parents
+    # Get or create the 'Unassigned' block
     unassigned_block = crud.get_or_create_block_no_commit(db, "Unassigned", description="For imported subnets that do not fit into any specified parent block.")
+    block_cache["Unassigned"] = unassigned_block
 
     # Parse parent blocks from form input
     parent_networks = []
@@ -60,7 +64,12 @@ def import_cisco_config(
     networks_to_process = []
     for intf in intfs:
         name = intf.text.split(None, 1)[1].strip()
-        iface = crud.get_or_create_interface_no_commit(db, device, name)
+
+        if name in interface_cache:
+            iface = interface_cache[name]
+        else:
+            iface = crud.get_or_create_interface_no_commit(db, device, name)
+            interface_cache[name] = iface
 
         is_shutdown = len(intf.re_search_children(r"^\s*shutdown\s*$")) > 0
 
@@ -69,12 +78,16 @@ def import_cisco_config(
         if '.' in name:
             try:
                 vlan_num = int(name.split('.')[-1])
-                vlan = crud.get_vlan_by_id(db, vlan_num)
-                if not vlan:
-                    vlan = crud.create_vlan_no_commit(db, vlan_id=vlan_num, name=f"VLAN-{vlan_num}", created_by=user.username)
+                if vlan_num in vlan_cache:
+                    vlan = vlan_cache[vlan_num]
+                else:
+                    vlan = crud.get_vlan_by_id(db, vlan_num)
+                    if not vlan:
+                        vlan = crud.create_vlan_no_commit(db, vlan_id=vlan_num, name=f"VLAN-{vlan_num}", created_by=user.username)
+                    vlan_cache[vlan_num] = vlan
                 vlan_id_to_associate = vlan.id
             except ValueError:
-                pass  # Not a valid VLAN sub-interface
+                pass
 
         description = ""
         desc_line = intf.re_search_children(r"^\s+description\s+")
@@ -102,39 +115,31 @@ def import_cisco_config(
         for net_info in networks_to_process:
             network = net_info["network"]
 
-            # Find parent block
-            assigned_parent = None
-            for p_net in parent_networks:
-                if network.subnet_of(p_net):
-                    assigned_parent = p_net
-                    break
+            assigned_parent = next((p_net for p_net in parent_networks if network.subnet_of(p_net)), None)
 
-            # Determine status
+            status = SubnetStatus.imported
             if net_info["is_shutdown"]:
                 status = SubnetStatus.deactivated
             elif assigned_parent is None:
                 status = SubnetStatus.inactive
-            else:
-                status = SubnetStatus.imported
 
-            # Determine parent block for DB
+            parent_block_obj = None
             if assigned_parent:
-                parent_block_obj = crud.get_or_create_block_no_commit(db, str(assigned_parent), created_by=user.username)
+                parent_cidr = str(assigned_parent)
+                if parent_cidr in block_cache:
+                    parent_block_obj = block_cache[parent_cidr]
+                else:
+                    parent_block_obj = crud.get_or_create_block_no_commit(db, parent_cidr, created_by=user.username)
+                    block_cache[parent_cidr] = parent_block_obj
             else:
                 parent_block_obj = unassigned_block
 
-            # Create subnet
             subnet = crud.create_or_get_subnet_no_commit(
-                db,
-                str(network.with_prefixlen),
-                parent_block_obj,
-                status=status,
-                created_by=user.username,
-                vlan_id=net_info["vlan_id"],
-                description=net_info["description"]
+                db, str(network.with_prefixlen), parent_block_obj,
+                status=status, created_by=user.username,
+                vlan_id=net_info["vlan_id"], description=net_info["description"]
             )
 
-            # Add the interface address record
             crud.add_interface_address_no_commit(db, net_info["iface"], ip=net_info["ip"], prefix=network.prefixlen, subnet_id=subnet.id)
             imported += 1
 
