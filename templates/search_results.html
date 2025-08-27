@@ -1,77 +1,80 @@
 {% extends "layout.html" %}
-{% block title %}Search Results - IPAM{% endblock %}
+{% block title %}Search Results for "{{ query }}" - IPDB{% endblock %}
 
 {% block content %}
-<div class="mb-6 border-b border-slate-200 pb-4">
-    <h1 class="text-2xl font-bold text-slate-700">Search</h1>
-    <p class="text-slate-500">Search for any IP, Subnet, Client, or VLAN.</p>
-</div>
-
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
-  <form method="get" action="/dashboard/search" class="flex items-center gap-3">
-    <input type="text" name="query" value="{{ query or '' }}" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., 10.1.1.5 or Customer Name or VLAN 100" required>
-    <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Search</button>
-  </form>
-</div>
-
-
-{% if query %}
-  <h2 class="text-xl font-semibold text-slate-600 mb-4">Results for "<span class="font-mono">{{ query }}</span>"</h2>
-
-  {% if error %}
-    <div class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg relative" role="alert">
-      <span class="block sm:inline">{{ error }}</span>
+<div class="container mx-auto px-4 py-6">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold">Search Results</h1>
+        <p class="text-lg text-gray-600">Found results for <span class="font-semibold text-gray-900">"{{ query }}"</span></p>
     </div>
 
-  {% elif results %}
-    <div class="space-y-4">
-    {% for result in results %}
-        {% if result.type == 'subnet' %}
-            {% set subnet = result.data %}
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800 font-mono">{{ subnet.cidr }}</h3>
-                        <p class="text-sm text-slate-600">{{ subnet.description }}</p>
-                    </div>
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-full">Subnet</span>
-                </div>
-                <div class="text-xs text-slate-500 mt-2">
-                    <span>Parent: <a href="/?block_id={{ subnet.block.id }}" class="text-sky-600 hover:underline">{{ subnet.block.cidr }}</a></span> |
-                    <span>VLAN: {{ subnet.vlan.vlan_id if subnet.vlan else '-' }}</span> |
-                    <span>Client:
-                        {% if subnet.client %}
-                            <a href="/clients/{{ subnet.client.id }}" class="text-sky-600 hover:underline">{{ subnet.client.name }}</a>
-                        {% else %}-{% endif %}
-                    </span> |
-                    <span>Status: {{ subnet.status.name|capitalize }}</span>
-                </div>
+    {% if not clients and not subnets and not vlans %}
+    <div class="text-center py-16">
+        <p class="text-xl text-gray-500">No results found.</p>
+        <p class="text-gray-400 mt-2">Try searching for something else.</p>
+    </div>
+    {% else %}
+        <!-- Clients -->
+        {% if clients %}
+        <div class="mb-10">
+            <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Clients</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for client in clients %}
+                <a href="/clients/{{ client.id }}" class="block bg-white rounded-lg shadow p-4 hover:shadow-lg transition">
+                    <h3 class="font-bold text-lg">{{ client.name }}</h3>
+                    <p class="text-sm {{ 'text-green-600' if client.is_active else 'text-red-600' }}">
+                        {{ 'Active' if client.is_active else 'Inactive' }}
+                    </p>
+                </a>
+                {% endfor %}
             </div>
-        {% elif result.type == 'client' %}
-            {% set client = result.data %}
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                 <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800">{{ client.name }}</h3>
-                        <a href="/clients/{{ client.id }}" class="text-sm text-sky-600 hover:underline">View Client Details &rarr;</a>
-                    </div>
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-full">Client</span>
-                </div>
-            </div>
-        {% elif result.type == 'vlan' %}
-            {% set vlan = result.data %}
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                 <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800">VLAN {{ vlan.vlan_id }}</h3>
-                        <p class="text-sm text-slate-600">{{ vlan.name }}</p>
-                    </div>
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-1 rounded-full">VLAN</span>
-                </div>
-            </div>
+        </div>
         {% endif %}
-    {% endfor %}
-    </div>
-  {% endif %}
-{% endif %}
+
+        <!-- Subnets -->
+        {% if subnets %}
+        <div class="mb-10">
+            <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Subnets</h2>
+            <div class="space-y-3">
+                {% for subnet in subnets %}
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-center">
+                        <p class="font-mono text-lg">{{ subnet.cidr }}</p>
+                        <span class="text-sm font-semibold px-2 py-1 rounded-full
+                            {% if subnet.status.name == 'allocated' %}bg-blue-100 text-blue-800
+                            {% elif subnet.status.name == 'imported' %}bg-purple-100 text-purple-800
+                            {% elif subnet.status.name == 'inactive' %}bg-gray-100 text-gray-800
+                            {% elif subnet.status.name == 'deactivated' %}bg-red-100 text-red-800
+                            {% endif %}">
+                            {{ subnet.status.name|capitalize }}
+                        </span>
+                    </div>
+                    <p class="text-gray-600">{{ subnet.description or 'No description' }}</p>
+                    <div class="text-sm text-gray-500 mt-2">
+                        <span>Parent: <a href="/?block_id={{ subnet.block.id }}" class="text-indigo-600 hover:underline">{{ subnet.block.cidr }}</a></span>
+                        {% if subnet.client %} | <span>Client: <a href="/clients/{{ subnet.client.id }}" class="text-indigo-600 hover:underline">{{ subnet.client.name }}</a></span>{% endif %}
+                        {% if subnet.vlan %} | <span>VLAN: {{ subnet.vlan.vlan_id }}</span>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- VLANs -->
+        {% if vlans %}
+        <div>
+            <h2 class="text-2xl font-semibold mb-4 border-b pb-2">VLANs</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {% for vlan in vlans %}
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="font-bold">VLAN {{ vlan.vlan_id }}</h3>
+                    <p class="text-gray-600">{{ vlan.name }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
 {% endblock %}

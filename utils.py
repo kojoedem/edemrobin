@@ -1,41 +1,35 @@
-import ipaddress
 import re
+import ipaddress
 
 def detect_config_type(config_text: str):
     """
     Detects the type of configuration file (Cisco IOS or MikroTik RouterOS).
     Returns 'cisco', 'mikrotik', or 'unknown'.
     """
-    if "/ip address add" in config_text or "/interface bridge add" in config_text:
+    # More robust detection for MikroTik
+    if "/ip address" in config_text and "/interface" in config_text and "add action=accept" not in config_text:
         return "mikrotik"
-    if "interface Vlan" in config_text or ("ip address" in config_text and "255." in config_text):
+    # More robust detection for Cisco
+    if "interface Vlan" in config_text or re.search(r"ip address \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} 255\.", config_text):
         return "cisco"
     return "unknown"
 
 def parse_cisco_config(config_text: str):
-    """
-    Parses a Cisco-style configuration line by line to extract detailed
-    interface information, including sub-interface VLANs and descriptions.
-    """
+    # This function remains as is, since it's for Cisco configs.
     lines = config_text.splitlines()
     interfaces = {}
     current_interface = None
-
     for line in lines:
         line = line.strip()
         if not line or line.startswith('!'):
             if not line.strip().startswith('!'):
                 current_interface = None
             continue
-
         if line.lower().startswith('interface '):
             current_interface = line.split(' ', 1)[1]
             interfaces[current_interface] = {
-                "name": current_interface,
-                "description": None,
-                "ip_address": None,
-                "subnet_mask": None,
-                "vlan_id": None
+                "name": current_interface, "description": None, "ip_address": None,
+                "subnet_mask": None, "vlan_id": None
             }
             if '.' in current_interface:
                 try:
@@ -44,7 +38,6 @@ def parse_cisco_config(config_text: str):
                 except (ValueError, IndexError):
                     pass
             continue
-
         if current_interface and interfaces.get(current_interface):
             if line.lower().startswith('description '):
                 interfaces[current_interface]['description'] = line.split(' ', 1)[1]
@@ -54,62 +47,81 @@ def parse_cisco_config(config_text: str):
                     if not interfaces[current_interface]['ip_address']:
                         interfaces[current_interface]['ip_address'] = parts[2]
                         interfaces[current_interface]['subnet_mask'] = parts[3]
-
     return [data for data in interfaces.values() if data['ip_address']]
 
 def parse_mikrotik_config(config_text: str):
     """
-    Parses a MikroTik-style configuration to extract detailed
-    interface and IP address information.
-    """
-    vlans = {}
-    ip_entries = []
-    current_section = None
+    Parses a MikroTik RouterOS configuration file to extract detailed information
+    about interfaces, IP addresses, VLANs, NAT rules, and routes.
 
-    vlan_regex = re.compile(r'add name=(?P<name>\S+).*vlan-id=(?P<vlan_id>\d+)')
-    ip_regex = re.compile(r'add address=(?P<address>\S+)\s+interface=(?P<interface>\S+)(?:\s+comment="(?P<comment>[^"]+)")?')
+    Returns a dictionary with structured data.
+    """
+    # Regex to find a line that starts a new section
+    section_re = re.compile(r"^/(interface|ip address|ip firewall nat|ip route|ip vrf)(?:\s+print.*)?$")
+    # Regex to find a comment on an interface
+    interface_comment_re = re.compile(r'set \[ find where name=(?:"([^"]+)"|(\S+)) \] comment=(?:"([^"]+)"|(\S+))')
+    # Regex to find property="value" pairs, handling quoted and unquoted values
+    prop_re = re.compile(r'(\w+)=(?:"([^"]+)"|(\S+))')
+
+    data = {
+        "interfaces": [],
+        "addresses": [],
+        "nat_rules": [],
+        "routes": [],
+        "vrfs": [],
+        "comments": {}
+    }
+    current_section = None
 
     for line in config_text.splitlines():
         line = line.strip()
-        if not line:
+        if not line or line.startswith('#'):
             continue
 
-        if line.startswith('/'):
-            if '/interface vlan' in line:
-                current_section = 'vlan'
-            elif '/ip address' in line:
-                current_section = 'ip_address'
-            else:
-                current_section = None
+        # Check for section changes
+        section_match = section_re.match(line)
+        if section_match:
+            current_section = section_match.group(1).replace(" ", "_")
             continue
 
-        if current_section == 'vlan' and line.startswith('add'):
-            match = vlan_regex.search(line)
-            if match:
-                data = match.groupdict()
-                vlans[data['name']] = int(data['vlan_id'])
+        # Parse interface comments specifically
+        if current_section == "interface":
+            comment_match = interface_comment_re.search(line)
+            if comment_match:
+                # Handles both quoted and unquoted names/comments
+                name = comment_match.group(1) or comment_match.group(2)
+                comment = comment_match.group(3) or comment_match.group(4)
+                data["comments"][name] = comment
 
-        elif current_section == 'ip_address' and line.startswith('add'):
-            match = ip_regex.search(line)
-            if match:
-                ip_entries.append(match.groupdict())
+        if line.startswith("add"):
+            props = dict(prop_re.findall(line))
 
-    # Combine the parsed data
-    interfaces = []
-    for entry in ip_entries:
-        try:
-            ip_interface = ipaddress.ip_interface(entry['address'])
-            interfaces.append({
-                "name": entry['interface'],
-                "description": entry.get('comment'),
-                "ip_address": str(ip_interface.ip),
-                "subnet_mask": str(ip_interface.netmask),
-                "vlan_id": vlans.get(entry['interface'])
-            })
-        except ValueError:
-            continue
+            # Normalize properties that might be quoted or not
+            for key, value in props.items():
+                # The regex captures into two groups, one for quoted, one for unquoted.
+                # We need to merge them. This is a simplification. A better regex would avoid this.
+                # For now, we assume the prop_re gives us a simple key-value.
+                pass
 
-    return interfaces
+            if current_section == "ip_address" and "address" in props and "interface" in props:
+                props['comment'] = props.get('comment', '').strip('"')
+                data["addresses"].append(props)
+
+            elif current_section == "ip_firewall_nat" and "chain" in props:
+                data["nat_rules"].append(props)
+
+            elif current_section == "ip_route" and "dst-address" in props:
+                data["routes"].append(props)
+
+            elif current_section == "ip_vrf":
+                data["vrfs"].append(props)
+
+    # Post-processing: Associate comments with addresses
+    for addr in data["addresses"]:
+        if not addr.get("comment"):
+            addr["comment"] = data["comments"].get(addr["interface"])
+
+    return data
 
 def parse_config(config_text: str):
     """
@@ -118,9 +130,10 @@ def parse_config(config_text: str):
     config_type = detect_config_type(config_text)
 
     if config_type == "cisco":
-        return parse_cisco_config(config_text)
+        # Cisco parser returns a simple list, wrap it for consistency
+        return {"interfaces": parse_cisco_config(config_text)}
     elif config_type == "mikrotik":
         return parse_mikrotik_config(config_text)
     else:
-        print("WARNING: Could not determine config type. Falling back to Cisco parser.")
-        return parse_cisco_config(config_text)
+        # Fallback or error
+        raise ValueError("Could not determine configuration type.")

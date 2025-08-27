@@ -56,56 +56,49 @@ def bootstrap_admin():
 
 templates = Jinja2Templates(directory="templates")
 
-@app.get("/")
-def home(request: Request, block_id: Optional[int] = None, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
+from sqlalchemy import or_
 
-    # Get blocks this user is allowed to see for the stats cards
+@app.get("/")
+def home(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    # --- Stats ---
+    vlan_count = db.query(models.VLAN).count()
+    client_count = db.query(models.Client).filter(models.Client.is_active == True).count()
+
     if user.is_admin:
-        blocks_for_stats = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+        blocks_for_stats = db.query(models.IPBlock).filter(models.IPBlock.cidr != "Unassigned").order_by(models.IPBlock.cidr).all()
     else:
-        blocks_for_stats = user.allowed_blocks
+        blocks_for_stats = [b for b in user.allowed_blocks if b.cidr != "Unassigned"]
         blocks_for_stats.sort(key=lambda x: ipaddress.ip_network(x.cidr))
 
     block_stats = []
     for block in blocks_for_stats:
-        parent_network = ipaddress.ip_network(block.cidr)
-        total_ips = parent_network.num_addresses
+        try:
+            parent_network = ipaddress.ip_network(block.cidr)
+            total_ips = parent_network.num_addresses
+            active_subnets = [s for s in block.subnets if s.status == models.SubnetStatus.allocated]
+            used_ips = sum(ipaddress.ip_network(subnet.cidr).num_addresses for subnet in active_subnets)
+            utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
+            block_stats.append({
+                "block": block, "total_ips": total_ips, "used_ips": used_ips, "utilization": utilization
+            })
+        except ValueError:
+            continue # Skip invalid CIDR in stats
 
-        used_ips = 0
-        # Filter subnets by status to not include 'imported' or 'inactive' as 'used' in the main stat
-        active_subnets = [s for s in block.subnets if s.status == models.SubnetStatus.allocated]
-        for subnet in active_subnets:
-            used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
-
-        block_stats.append({
-            "block": block,
-            "total_ips": total_ips,
-            "used_ips": used_ips,
-            "utilization": (used_ips / total_ips) * 100 if total_ips > 0 else 0,
-        })
-
-    # Fetch allocations for a specific block if block_id is provided
-    allocations = []
-    selected_block = None
-    if block_id:
-        selected_block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
-        if selected_block:
-            # Check if the user has permission to view this block
-            if user.is_admin or selected_block in user.allowed_blocks:
-                allocations = db.query(models.Subnet).filter(
-                    models.Subnet.block_id == block_id,
-                    models.Subnet.status != models.SubnetStatus.deactivated
-                ).order_by(models.Subnet.created_at.desc()).all()
+    # --- Recent Allocations ---
+    recent_allocations = db.query(models.Subnet).filter(
+        models.Subnet.status.in_([models.SubnetStatus.allocated, models.SubnetStatus.imported, models.SubnetStatus.inactive])
+    ).order_by(models.Subnet.created_at.desc()).limit(10).all()
 
     return templates.TemplateResponse(
-        "index.html",
+        "dashboard.html",
         {
-            "request": request,
-            "user": user,
-            "allocations": allocations,
-            "block_stats": block_stats,
-            "selected_block": selected_block,
+            "request": request, "user": user, "block_stats": block_stats,
+            "recent_allocations": recent_allocations, "vlan_count": vlan_count,
+            "client_count": client_count
         }
     )
 
@@ -302,17 +295,41 @@ def create_block(
 ):
     user = get_current_user(request, db)
 
-    block = models.IPBlock(
+    # Create the new block
+    new_block = models.IPBlock(
         cidr=cidr,
         description=description,
         created_by=user.username,
         created_at=datetime.utcnow()
     )
-    db.add(block)
+    db.add(new_block)
     db.commit()
-    db.refresh(block)
+    db.refresh(new_block)
 
-    # Redirect back to the blocks page
+    # --- Automatic Re-assignment Logic ---
+    try:
+        new_parent_network = ipaddress.ip_network(new_block.cidr)
+        unassigned_block = db.query(models.IPBlock).filter(models.IPBlock.cidr == "Unassigned").first()
+
+        if unassigned_block:
+            subnets_to_reassign = db.query(models.Subnet).filter(models.Subnet.block_id == unassigned_block.id).all()
+            for subnet in subnets_to_reassign:
+                try:
+                    subnet_network = ipaddress.ip_network(subnet.cidr)
+                    if subnet_network.subnet_of(new_parent_network):
+                        subnet.block_id = new_block.id
+                        # Also update status from inactive to imported
+                        if subnet.status == models.SubnetStatus.inactive:
+                            subnet.status = models.SubnetStatus.imported
+                except ValueError:
+                    continue # Skip invalid subnet CIDRs
+            db.commit()
+    except ValueError:
+        pass # Ignore if the new block has an invalid CIDR
+    except Exception as e:
+        db.rollback()
+        # Optionally log the error, e.g., print(f"Error during re-assignment: {e}")
+
     return RedirectResponse(url="/admin/blocks", status_code=303)
 
 
@@ -341,14 +358,123 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
     if not block:
         raise HTTPException(status_code=404, detail="IP Block not found")
 
-    if block.subnets:
-        # Prevent deletion if there are subnets associated with this block
-        # You might want to handle this more gracefully with a message to the user
-        raise HTTPException(status_code=400, detail="Cannot delete a block that has subnets allocated from it.")
+    # Cascading delete of subnets within this block
+    db.query(models.Subnet).filter(models.Subnet.block_id == block_id).delete(synchronize_session=False)
 
     db.delete(block)
     db.commit()
     return RedirectResponse(url="/admin/blocks", status_code=303)
+
+# --- Client Management ---
+@app.get("/admin/clients", response_class=HTMLResponse)
+@admin_required
+def admin_clients_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    clients = db.query(models.Client).order_by(models.Client.name).all()
+    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients})
+
+@app.post("/admin/clients/create")
+@admin_required
+def create_client_action(request: Request, name: str = Form(...), db: Session = Depends(get_db)):
+    crud.get_or_create_client(db, name=name, is_active=True)
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+@app.post("/admin/clients/bulk_action")
+@admin_required
+def client_bulk_action(request: Request, action: str = Form(...), selected_clients: List[int] = Form([]), db: Session = Depends(get_db)):
+    if not selected_clients:
+        return RedirectResponse(url="/admin/clients", status_code=303) # Or show a message
+
+    clients_query = db.query(models.Client).filter(models.Client.id.in_(selected_clients))
+
+    if action == "delete":
+        for client in clients_query.all():
+            # Unlink subnets before deleting client
+            db.query(models.Subnet).filter(models.Subnet.client_id == client.id).update({"client_id": None})
+            db.delete(client)
+    elif action == "activate":
+        clients_query.update({"is_active": True})
+    elif action == "deactivate":
+        clients_query.update({"is_active": False})
+
+    db.commit()
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+@app.post("/admin/clients/{client_id}/toggle_status")
+@admin_required
+def toggle_client_status(request: Request, client_id: int, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    client.is_active = not client.is_active
+    db.commit()
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+@app.post("/admin/clients/{client_id}/delete")
+@admin_required
+def delete_client_action(request: Request, client_id: int, db: Session = Depends(get_db)):
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    # Unlink subnets before deleting client
+    db.query(models.Subnet).filter(models.Subnet.client_id == client.id).update({"client_id": None})
+    db.delete(client)
+    db.commit()
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+@app.get("/clients/{client_id}", response_class=HTMLResponse)
+@login_required
+def client_detail_page(request: Request, client_id: int, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    subnets = db.query(models.Subnet).filter(models.Subnet.client_id == client.id).all()
+    nat_ips = db.query(models.NatIp).filter(models.NatIp.client_id == client.id).all()
+
+    return templates.TemplateResponse("client_detail.html", {
+        "request": request, "user": user, "client": client,
+        "subnets": subnets, "nat_ips": nat_ips
+    })
+
+
+# --- NAT IPs ---
+@app.get("/dashboard/nat_ips", response_class=HTMLResponse)
+@login_required
+def nat_ips_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    nat_ips = db.query(models.NatIp).join(models.Client).order_by(models.Client.name).all()
+    return templates.TemplateResponse("nat_ips.html", {"request": request, "user": user, "nat_ips": nat_ips})
+
+
+# --- Search ---
+@app.get("/dashboard/search", response_class=HTMLResponse)
+@login_required
+def search_results_page(request: Request, query: str, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+
+    # Search Clients
+    clients = db.query(models.Client).filter(models.Client.name.ilike(f"%{query}%")).all()
+
+    # Search Subnets
+    subnets = db.query(models.Subnet).filter(
+        or_(
+            models.Subnet.cidr.ilike(f"%{query}%"),
+            models.Subnet.description.ilike(f"%{query}%")
+        )
+    ).all()
+
+    # Search VLANs
+    vlan_filter = [models.VLAN.name.ilike(f"%{query}%")]
+    if query.isdigit():
+        vlan_filter.append(models.VLAN.vlan_id == int(query))
+    vlans = db.query(models.VLAN).filter(or_(*vlan_filter)).all()
+
+    return templates.TemplateResponse("search_results.html", {
+        "request": request, "user": user, "query": query,
+        "clients": clients, "subnets": subnets, "vlans": vlans
+    })
 
 
 @app.get("/admin/settings", response_class=HTMLResponse)
@@ -543,127 +669,6 @@ def delete_vlan_action(request: Request, vlan_id: int, db: Session = Depends(get
     db.delete(vlan)
     db.commit()
     return RedirectResponse(url="/dashboard/add_vlan", status_code=303)
-@app.get("/dashboard/search_vlan")
-def search_vlan(request: Request, query: Optional[str] = None, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    results = []
-    if query:
-        search_query = query.strip()
-        # Search by name OR by ID if the query is a valid integer
-        from sqlalchemy import or_
-        q_filter = [models.VLAN.name.contains(search_query)]
-        if search_query.isdigit():
-            q_filter.append(models.VLAN.vlan_id == int(search_query))
-
-        results = db.query(models.VLAN).filter(or_(*q_filter)).all()
-
-    return templates.TemplateResponse(
-        "search_vlan.html",
-        {"request": request, "user": user, "results": results, "query": query}
-    )
-
-@app.get("/dashboard/search_ip")
-def search_ip(request: Request, query: Optional[str] = None, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    results = []
-    search_type = None
-    error = None
-    searched_ip_str = None
-
-    if query:
-        try:
-            searched_ip = ipaddress.ip_address(query)
-            searched_ip_str = str(searched_ip)
-            search_type = 'ip'
-
-            all_subnets = db.query(models.Subnet).all()
-            found_subnets = [s for s in all_subnets if searched_ip in ipaddress.ip_network(s.cidr)]
-
-            for subnet in found_subnets:
-                network = ipaddress.ip_network(subnet.cidr)
-                usable_hosts = list(network.hosts())
-                results.append({
-                    "type": "subnet",
-                    "data": {
-                        "subnet": subnet,
-                        "network_address": network.network_address,
-                        "broadcast_address": network.broadcast_address,
-                        "total_ips": network.num_addresses,
-                        "usable_ips_count": len(usable_hosts),
-                        "usable_range": f"{usable_hosts[0]} - {usable_hosts[-1]}" if usable_hosts else "N/A",
-                        "all_usable_ips": usable_hosts,
-                    }
-                })
-
-        except ValueError:
-            search_type = 'text'
-            from sqlalchemy import or_
-
-            found_subnets = db.query(models.Subnet).filter(
-                or_(models.Subnet.cidr.contains(query), models.Subnet.description.contains(query))
-            ).all()
-            for subnet in found_subnets:
-                results.append({"type": "subnet", "data": {"subnet": subnet}})
-
-            found_blocks = db.query(models.IPBlock).filter(
-                or_(models.IPBlock.cidr.contains(query), models.IPBlock.description.contains(query))
-            ).all()
-            for block in found_blocks:
-                results.append({"type": "block", "data": block})
-
-        if not results:
-            error = f"No results found for '{query}'."
-
-    return templates.TemplateResponse(
-        "search_ip.html",
-        {
-            "request": request,
-            "user": user,
-            "results": results,
-            "query": query,
-            "search_type": search_type,
-            "searched_ip": searched_ip_str,
-            "error": error,
-        }
-    )
-@app.get("/dashboard/allocate_ip", response_class=HTMLResponse)
-def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
-    """
-    Renders the page for allocating new subnets.
-    """
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-
-    # Fetch data needed for the form
-    allocations = db.query(models.Subnet).filter(
-        models.Subnet.status != models.SubnetStatus.deactivated
-    ).order_by(models.Subnet.created_at.desc()).all()
-
-    if user.is_admin:
-        blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
-    else:
-        blocks = user.allowed_blocks
-        blocks.sort(key=lambda x: ipaddress.ip_network(x.cidr))
-
-    vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
-
-    return templates.TemplateResponse(
-        "allocate_ip.html",
-        {
-            "request": request,
-            "user": user,
-            "allocations": allocations,
-            "blocks": blocks,
-            "vlans": vlans,
-        },
-    )
 
 
 @app.get("/dashboard/allocations/{subnet_id}/edit", response_class=HTMLResponse)
@@ -772,127 +777,17 @@ def activate_allocation_action(
 
     return RedirectResponse(url="/", status_code=303)
 
-
-@app.get("/dashboard/upload_config/export")
-def export_config_csv(
-    request: Request,
-    filename: str,
-    db: Session = Depends(get_db),
-):
-    user = get_current_user(request, db)
-    safe_name = os.path.basename(filename)
-    path = os.path.join("configs", safe_name)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Uploaded file not found")
-
-    with open(path, "r") as f:
-        config_text = f.read()
-    interfaces = parse_config(config_text)
-
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(["interface_name", "ip_address", "subnet_mask", "description", "vlan_id"])
-    for iface in interfaces:
-        w.writerow([iface.get(k) for k in ["name", "ip_address", "subnet_mask", "description", "vlan_id"]])
-    out_name = f"{os.path.splitext(safe_name)[0]}_interfaces.csv"
-    buf.seek(0)
-    headers = {"Content-Disposition": f'attachment; filename="{out_name}"'}
-    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)
-
-@app.post("/dashboard/upload_config/save")
+@app.post("/dashboard/allocations/{subnet_id}/delete")
 @admin_required
-def save_config_to_db(request: Request, filename: str = Form(...), db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    safe_name = os.path.basename(filename)
-    path = os.path.join("configs", safe_name)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Uploaded file not found")
+def delete_subnet_permanently(request: Request, subnet_id: int, db: Session = Depends(get_db)):
+    """ Permanently deletes a subnet, e.g., from the churned page. """
+    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    if not subnet:
+        raise HTTPException(status_code=404, detail="Subnet not found")
 
-    with open(path, "r") as f:
-        config_text = f.read()
-    interfaces = parse_config(config_text)
+    # Also delete associated interface addresses
+    db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == subnet_id).delete(synchronize_session=False)
 
-    for iface in interfaces:
-        try:
-            # Use /32 for each IP to mark it as used
-            network = ipaddress.ip_network(f"{iface['ip_address']}/32")
-            # The parent block is derived from the IP and its actual mask
-            parent_network = ipaddress.ip_network(f"{iface['ip_address']}/{iface['subnet_mask']}", strict=False)
-        except (ValueError, TypeError):
-            continue
-
-        block = crud.get_or_create_block(db, str(parent_network), created_by=user.username)
-
-        vlan = None
-        if iface.get('vlan_id'):
-            vlan_id = iface['vlan_id']
-            vlan = crud.get_vlan_by_id(db, vlan_id)
-            if not vlan:
-                # If VLAN with this ID doesn't exist, create it.
-                vlan_name = iface.get('name', f"VLAN_{vlan_id}")
-
-                # To prevent creating a VLAN with a duplicate name, check first.
-                existing_vlan_by_name = db.query(models.VLAN).filter(models.VLAN.name == vlan_name).first()
-                if existing_vlan_by_name:
-                    print(f"Warning: A VLAN with the name '{vlan_name}' already exists but with a different ID. Skipping VLAN creation for this interface to avoid conflicts.")
-                else:
-                    try:
-                        vlan = crud.create_vlan(db, vlan_id=vlan_id, name=vlan_name, created_by=user.username)
-                    except Exception as e:
-                        print(f"Error creating VLAN {vlan_id}: {e}")
-                        # Potentially a race condition if another process created it.
-                        db.rollback()
-                        vlan = crud.get_vlan_by_id(db, vlan_id)
-
-        description = iface['description'] or f"Imported from {iface.get('name', 'config')}"
-
-        # Use a /32 for the subnet to represent a single used IP
-        subnet_cidr = f"{iface['ip_address']}/32"
-
-        existing_subnet = db.query(models.Subnet).filter(models.Subnet.cidr == subnet_cidr).first()
-        if not existing_subnet:
-            crud.create_or_get_subnet(
-                db=db,
-                cidr=subnet_cidr,
-                block=block,
-                status=models.SubnetStatus.imported,
-                created_by=user.username,
-                vlan_id=vlan.id if vlan else None,
-                description=description,
-            )
-
-    return RedirectResponse(url="/", status_code=303)
-
-
-from fastapi import File, UploadFile
-
-os.makedirs("configs", exist_ok=True)
-
-@app.get("/dashboard/upload_config", response_class=HTMLResponse)
-@admin_required
-def upload_config_page(request: Request, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})
-
-@app.post("/dashboard/upload_config")
-@admin_required
-async def upload_config_action(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    content = await file.read()
-    config_text = content.decode("utf-8")
-
-    filepath = f"configs/{file.filename}"
-    with open(filepath, "w") as f:
-        f.write(config_text)
-
-    interfaces = parse_config(config_text)
-
-    return templates.TemplateResponse(
-        "upload_result.html",
-        {
-            "request": request,
-            "user": user,
-            "interfaces": interfaces,
-            "filename": file.filename,
-        }
-    )
+    db.delete(subnet)
+    db.commit()
+    return RedirectResponse(url="/dashboard/churned", status_code=303)
