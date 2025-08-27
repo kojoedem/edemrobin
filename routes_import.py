@@ -69,15 +69,22 @@ def import_cisco_config(
 
     # Find NAT IPs from `ip route` commands
     nat_ips = set()
-    route_lines = parse.find_lines(r"^ip\s+route\s+vrf")
+    route_lines = parse.find_lines(r"^ip\s+route\s+")
     for line in route_lines:
         parts = line.split()
-        # Example: ip route vrf 2CTV-INT 41.189.178.110 255.255.255.255 ...
-        if len(parts) >= 4:
+        ip_to_check = ""
+        # ip route <dest> <mask> ...
+        # ip route vrf <vrf> <dest> <mask> ...
+        if len(parts) >= 3 and parts[2] == "vrf":
+            if len(parts) >= 5:
+                ip_to_check = parts[4]
+        elif len(parts) >= 3:
+            ip_to_check = parts[2]
+
+        if ip_to_check:
             try:
-                # Validate that it's an IP address
-                ipaddress.ip_address(parts[3])
-                nat_ips.add(parts[3])
+                ipaddress.ip_address(ip_to_check)
+                nat_ips.add(ip_to_check)
             except ValueError:
                 continue
 
