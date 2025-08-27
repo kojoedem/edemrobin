@@ -42,7 +42,6 @@ def list_clients(db: Session) -> list[Client]:
 def delete_client(db: Session, client_id: int):
     client = db.query(Client).filter(Client.id == client_id).first()
     if client:
-        # Before deleting, ensure no subnets are associated with this client
         if client.subnets:
             raise ValueError("Cannot delete a client that has subnets associated with it.")
         db.delete(client)

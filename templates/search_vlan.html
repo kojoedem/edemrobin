@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+
+{% block title %}Search VLAN - EDEMROBIN{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Search VLAN</h1>
+<div class="bg-white rounded-xl shadow p-4 mb-8">
+  <form method="get" action="/dashboard/search_vlan" class="flex items-center gap-3">
+    <input type="text" name="query" value="{{ query or '' }}" class="w-full border rounded px-3 py-2" placeholder="Search by VLAN ID or Name..." required>
+    <button class="bg-gray-900 text-white rounded px-4 py-2 whitespace-nowrap">Search</button>
+  </form>
+</div>
+
+{% if query %}
+<h2 class="text-xl font-semibold mb-4">Results for "{{ query }}"</h2>
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="text-left p-3 text-sm font-semibold">VLAN ID</th>
+        <th class="text-left p-3 text-sm font-semibold">VLAN Name</th>
+        <th class="text-left p-3 text-sm font-semibold">Site</th>
+        <th class="text-left p-3 text-sm font-semibold">Created By</th>
+        <th class="text-left p-3 text-sm font-semibold">Created At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for vlan in results %}
+      <tr class="border-t hover:bg-gray-50">
+        <td class="p-3 font-semibold">{{ vlan.vlan_id }}</td>
+        <td class="p-3">{{ vlan.name }}</td>
+        <td class="p-3">{{ vlan.site or '-'}}</td>
+        <td class="p-3">{{ vlan.created_by }}</td>
+        <td class="p-3 text-sm">{{ vlan.created_at.strftime("%Y-%m-%d %H:%M") if vlan.created_at else "-" }}</td>
+      </tr>
+      {% endfor %}
+      {% if not results %}
+      <tr><td colspan="5" class="p-6 text-center text-gray-500">No VLANs found matching your search.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

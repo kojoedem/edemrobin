@@ -16,12 +16,6 @@ def add_vlan(
     site: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """
-    Handles the creation of a new VLAN.
-
-    - Requires user to have at least level 2 privileges.
-    - Checks for uniqueness of the VLAN ID before creation.
-    """
     user = get_current_user(request, db)
     if crud.get_vlan_by_id(db, vlan_id):
         raise HTTPException(status_code=400, detail="VLAN ID already exists")
