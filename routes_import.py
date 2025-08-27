@@ -41,10 +41,10 @@ def import_cisco_config(
     if not hostname:
         hostname = f"device-{file.filename}"
 
-    device = crud.get_or_create_device(db, hostname=hostname)
+    device = crud.get_or_create_device_no_commit(db, hostname=hostname)
 
     # Get or create the 'Unassigned' block for IPs that don't fit into specified parents
-    unassigned_block = crud.get_or_create_block(db, "Unassigned", description="For imported subnets that do not fit into any specified parent block.")
+    unassigned_block = crud.get_or_create_block_no_commit(db, "Unassigned", description="For imported subnets that do not fit into any specified parent block.")
 
     # Parse parent blocks from form input
     parent_networks = []
@@ -60,7 +60,7 @@ def import_cisco_config(
     networks_to_process = []
     for intf in intfs:
         name = intf.text.split(None, 1)[1].strip()
-        iface = crud.get_or_create_interface(db, device, name)
+        iface = crud.get_or_create_interface_no_commit(db, device, name)
 
         is_shutdown = len(intf.re_search_children(r"^\s*shutdown\s*$")) > 0
 
@@ -71,7 +71,7 @@ def import_cisco_config(
                 vlan_num = int(name.split('.')[-1])
                 vlan = crud.get_vlan_by_id(db, vlan_num)
                 if not vlan:
-                    vlan = crud.create_vlan(db, vlan_id=vlan_num, name=f"VLAN-{vlan_num}", created_by=user.username)
+                    vlan = crud.create_vlan_no_commit(db, vlan_id=vlan_num, name=f"VLAN-{vlan_num}", created_by=user.username)
                 vlan_id_to_associate = vlan.id
             except ValueError:
                 pass  # Not a valid VLAN sub-interface
@@ -119,12 +119,12 @@ def import_cisco_config(
 
             # Determine parent block for DB
             if assigned_parent:
-                parent_block_obj = crud.get_or_create_block(db, str(assigned_parent), created_by=user.username)
+                parent_block_obj = crud.get_or_create_block_no_commit(db, str(assigned_parent), created_by=user.username)
             else:
                 parent_block_obj = unassigned_block
 
             # Create subnet
-            subnet = crud.create_or_get_subnet(
+            subnet = crud.create_or_get_subnet_no_commit(
                 db,
                 str(network.with_prefixlen),
                 parent_block_obj,
@@ -135,7 +135,8 @@ def import_cisco_config(
             )
 
             # Add the interface address record
-            crud.add_interface_address(db, net_info["iface"], ip=net_info["ip"], prefix=network.prefixlen, subnet_id=subnet.id)
+            crud.add_interface_address_no_commit(db, net_info["iface"], ip=net_info["ip"], prefix=network.prefixlen, subnet_id=subnet.id)
             imported += 1
 
+    db.commit()
     return RedirectResponse(url="/", status_code=303)
