@@ -12,6 +12,7 @@ def allocate_subnet(
     user: User,
     subnet_size: int,
     vlan_id: Optional[int] = None,
+    client_id: Optional[int] = None,
     description: str="",
 ):
     """
@@ -46,6 +47,7 @@ def allocate_subnet(
                 block=block,
                 status=SubnetStatus.allocated,
                 vlan_id=vlan_id,
+                client_id=client_id,
                 description=description,
                 created_by=user.username,
             )

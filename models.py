@@ -30,6 +30,16 @@ class User(Base):
     )
 
 
+class Client(Base):
+    __tablename__ = "clients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    subnets = relationship("Subnet", back_populates="client")
+
+
 class VLAN(Base):
     __tablename__ = "vlans"
 
@@ -81,6 +91,9 @@ class Subnet(Base):
     block = relationship("IPBlock", back_populates="subnets")
 
     vlan = relationship("VLAN", lazy="joined")
+
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=True)
+    client = relationship("Client", back_populates="subnets")
 
     __table_args__ = (
         UniqueConstraint("cidr", name="uq_subnets_cidr"),

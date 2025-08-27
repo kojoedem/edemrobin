@@ -51,6 +51,18 @@
       </select>
     </div>
 
+    <div>
+      <label for="client_id" class="text-sm font-medium text-slate-600 block mb-1">Client (optional)</label>
+      <select name="client_id" id="client_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+        <option value="">-- No Client --</option>
+        {% for client in clients %}
+          <option value="{{ client.id }}" {% if subnet.client_id == client.id %}selected{% endif %}>
+            {{ client.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
     <div class="flex justify-end gap-3 pt-4">
         <a href="/" class="bg-slate-200 text-slate-800 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-300 transition">Cancel</a>
         <button type="submit" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Save Changes</button>

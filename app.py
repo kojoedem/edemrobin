@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from typing import Optional, List
 import os, re, ipaddress, io, csv, shutil
@@ -117,6 +117,7 @@ def allocate_ip_action(
     block_id: int = Form(...),
     subnet_size: int = Form(...),
     vlan_id: Optional[int] = Form(None),
+    client_id: Optional[int] = Form(None),
     description: str = Form(...),
     description_format: str = Form("uppercase"),
     db: Session = Depends(get_db),
@@ -142,6 +143,7 @@ def allocate_ip_action(
             user=user,
             subnet_size=subnet_size,
             vlan_id=vlan_id,
+            client_id=client_id,
             description=final_description
         )
         return RedirectResponse("/dashboard/allocate_ip?success=1", status_code=303)
@@ -278,6 +280,54 @@ def edit_user_action(
     db.commit()
 
     return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.get("/admin/clients", response_class=HTMLResponse)
+@admin_required
+def admin_clients_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    clients = crud.list_clients(db)
+    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients})
+
+@app.post("/admin/clients/create")
+@admin_required
+def admin_create_client_action(request: Request, name: str = Form(...), db: Session = Depends(get_db)):
+    if crud.get_client_by_name(db, name):
+        error_message = f"Client with name '{name}' already exists."
+        user = get_current_user(request, db)
+        clients = crud.list_clients(db)
+        return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "error": error_message}, status_code=400)
+    crud.create_client(db, name)
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+@app.post("/admin/clients/{client_id}/delete")
+@admin_required
+def admin_delete_client_action(request: Request, client_id: int, db: Session = Depends(get_db)):
+    try:
+        crud.delete_client(db, client_id)
+    except ValueError as e:
+        # This will catch the error if the client has associated subnets
+        user = get_current_user(request, db)
+        clients = crud.list_clients(db)
+        return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "error": str(e)}, status_code=400)
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+
+@app.get("/clients/{client_id}", response_class=HTMLResponse)
+@login_required
+def client_detail_page(request: Request, client_id: int, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    client = crud.get_client(db, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Eager load related data to prevent N+1 queries in the template
+    subnets = db.query(models.Subnet).options(
+        joinedload(models.Subnet.block),
+        joinedload(models.Subnet.vlan)
+    ).filter(models.Subnet.client_id == client_id).order_by(models.Subnet.id.desc()).all()
+
+    return templates.TemplateResponse("client_detail.html", {"request": request, "user": user, "client": client, "subnets": subnets})
 
 
 @app.get("/admin/blocks")
@@ -656,6 +706,7 @@ def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
         blocks.sort(key=lambda x: ipaddress.ip_network(x.cidr))
 
     vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
+    clients = crud.list_clients(db)
 
     return templates.TemplateResponse(
         "allocate_ip.html",
@@ -665,6 +716,7 @@ def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
             "allocations": allocations,
             "blocks": blocks,
             "vlans": vlans,
+            "clients": clients,
         },
     )
 
@@ -679,6 +731,7 @@ def edit_allocation_page(request: Request, subnet_id: int, db: Session = Depends
 
     vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
     blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    clients = crud.list_clients(db)
 
     return templates.TemplateResponse(
         "edit_allocation.html",
@@ -688,6 +741,7 @@ def edit_allocation_page(request: Request, subnet_id: int, db: Session = Depends
             "subnet": subnet,
             "vlans": vlans,
             "blocks": blocks,
+            "clients": clients,
         }
     )
 
@@ -699,6 +753,7 @@ def edit_allocation_action(
     description: str = Form(...),
     vlan_id: Optional[int] = Form(None),
     block_id: int = Form(...),
+    client_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
 ):
     subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
@@ -713,6 +768,7 @@ def edit_allocation_action(
     subnet.description = description
     subnet.vlan_id = vlan_id
     subnet.block_id = block_id
+    subnet.client_id = client_id
 
     # If moving to a real block from unassigned, mark as allocated
     if subnet.status == models.SubnetStatus.inactive and new_block.cidr != "Unassigned":
