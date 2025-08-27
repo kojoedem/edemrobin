@@ -1,11 +1,43 @@
 {% extends "layout.html" %}
-{% block title %}Upload Config - EDEMROBIN{% endblock %}
-{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Upload Device Config</h1>
+{% block title %}Upload Config - IPAM{% endblock %}
 
-<form action="/dashboard/upload_config" method="post" enctype="multipart/form-data"
-      class="bg-white rounded-xl shadow p-4 flex items-center gap-3">
-  <input type="file" name="file" class="border rounded px-3 py-2" required>
-  <button type="submit" class="bg-gray-900 text-white rounded px-4 py-2">Upload</button>
-</form>
+{% block content %}
+<div class="mb-6 border-b border-slate-200 pb-4">
+  <h1 class="text-2xl font-bold text-slate-700">Upload Cisco Configuration</h1>
+  <p class="text-slate-500">Upload a Cisco configuration file to import interfaces, clients, and subnets.</p>
+</div>
+
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+    <form method="post" action="/import/cisco-config" enctype="multipart/form-data" class="space-y-6">
+        <div>
+            <label for="file" class="block text-sm font-medium text-gray-700">Config File (.txt, .cfg, .conf)</label>
+            <div class="mt-1">
+                <input type="file" name="file" id="file" class="block w-full text-sm text-slate-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-sky-50 file:text-sky-700
+                    hover:file:bg-sky-100" required>
+            </div>
+        </div>
+
+        <div>
+            <label for="parent_blocks" class="block text-sm font-medium text-gray-700">
+                Parent Blocks
+                <span class="text-xs text-slate-500">(comma-separated)</span>
+            </label>
+            <div class="mt-1">
+                <textarea name="parent_blocks" id="parent_blocks" rows="3" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., 10.10.0.0/16, 192.168.0.0/16" required></textarea>
+            </div>
+            <p class="mt-2 text-sm text-slate-500">Provide the parent supernets to sort the imported subnets into. Subnets that do not fit will be placed in 'Unassigned'.</p>
+        </div>
+
+        <div>
+            <button type="submit"
+                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                Import Configuration
+            </button>
+        </div>
+    </form>
+</div>
 {% endblock %}
