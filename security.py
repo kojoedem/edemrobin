@@ -1,5 +1,5 @@
 from passlib.context import CryptContext
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import User
@@ -23,7 +23,7 @@ def get_db():
 
 from models import Setting
 
-def get_current_user(request: Request, db: Session):
+def get_current_user(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
