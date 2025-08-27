@@ -49,6 +49,7 @@ def import_cisco_config(
                 raise HTTPException(status_code=400, detail=f"Invalid CIDR format: {cidr}")
 
     intfs = parse.find_objects(r"^interface\s+")
+    vlan_info = {}
     for intf in intfs:
         name = intf.text.split(None, 1)[1].strip()
         description = ""
@@ -56,6 +57,13 @@ def import_cisco_config(
         if desc_line:
             description = desc_line[0].text.strip().split(None, 1)[1]
         interface_to_description[name] = description
+        if '.' in name:
+            try:
+                vlan_num = int(name.split('.')[-1])
+                if vlan_num not in vlan_info or description:
+                    vlan_info[vlan_num] = description
+            except ValueError:
+                pass
 
     route_lines = parse.find_lines(r"^ip\s+route\s+")
     for line in route_lines:
@@ -77,6 +85,15 @@ def import_cisco_config(
     hostname = parse.find_lines(r"^hostname\s+")
     hostname = hostname[0].split()[1] if hostname else f"device-{file.filename}"
     device = crud.get_or_create_device(db, hostname=hostname)
+
+    crud.get_or_create_block(db, "Unassigned", description="For imported subnets that do not fit into any specified parent block.")
+
+    for cidr in required_parent_cidrs:
+        crud.get_or_create_block(db, cidr, created_by=user.username)
+
+    for vlan_num, description in vlan_info.items():
+        vlan_name = description if description else f"VLAN-{vlan_num}"
+        crud.get_or_create_vlan(db, vlan_id=vlan_num, created_by=user.username, name=vlan_name)
 
     for name in required_client_names:
         crud.get_or_create_client(db, name=name)
