@@ -66,4 +66,31 @@
     </tbody>
   </table>
 </div>
+
+<div class="mt-8">
+    <h2 class="text-xl font-semibold text-slate-600 mb-4">Assigned NAT IPs</h2>
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="text-left p-4 text-sm font-semibold text-slate-600">NAT IP Address</th>
+                    <th class="text-left p-4 text-sm font-semibold text-slate-600">Description</th>
+                    <th class="text-left p-4 text-sm font-semibold text-slate-600">Created At</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+                {% for nat_ip in nat_ips %}
+                <tr class="hover:bg-slate-50">
+                    <td class="p-4 font-mono text-sm">{{ nat_ip.ip_address }}</td>
+                    <td class="p-4 text-sm text-slate-600">{{ nat_ip.description or "-" }}</td>
+                    <td class="p-4 text-sm text-slate-500">{{ nat_ip.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+                </tr>
+                {% endfor %}
+                {% if not nat_ips %}
+                <tr><td colspan="3" class="p-6 text-center text-slate-500">No NAT IPs assigned to this client.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}
