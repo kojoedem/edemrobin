@@ -1,5 +1,47 @@
 import unittest
-from utils import parse_config
+import ipaddress
+from utils import parse_config, group_networks_by_supernet
+
+
+class TestGroupNetworksBySupernet(unittest.TestCase):
+
+    def test_basic_grouping(self):
+        networks = [
+            ipaddress.ip_network('192.168.1.0/28'),
+            ipaddress.ip_network('192.168.1.16/28'),
+            ipaddress.ip_network('192.168.2.0/26'),
+            ipaddress.ip_network('10.0.0.0/8'),
+        ]
+        grouped = group_networks_by_supernet(networks, prefixlen=24)
+        self.assertIn('192.168.1.0/24', grouped)
+        self.assertEqual(len(grouped['192.168.1.0/24']), 2)
+        self.assertIn('192.168.2.0/24', grouped)
+        self.assertEqual(len(grouped['192.168.2.0/24']), 1)
+        self.assertIn('10.0.0.0/8', grouped)
+        self.assertEqual(len(grouped['10.0.0.0/8']), 1)
+
+    def test_grouping_with_larger_prefix(self):
+        networks = [
+            ipaddress.ip_network('172.16.1.0/24'),
+            ipaddress.ip_network('172.16.2.0/24'),
+            ipaddress.ip_network('172.17.1.0/24'),
+        ]
+        grouped = group_networks_by_supernet(networks, prefixlen=16)
+        self.assertIn('172.16.0.0/16', grouped)
+        self.assertEqual(len(grouped['172.16.0.0/16']), 2)
+        self.assertIn('172.17.0.0/16', grouped)
+        self.assertEqual(len(grouped['172.17.0.0/16']), 1)
+
+    def test_empty_input(self):
+        grouped = group_networks_by_supernet([], prefixlen=24)
+        self.assertEqual(grouped, {})
+
+    def test_network_larger_than_prefix(self):
+        networks = [ipaddress.ip_network('10.0.0.0/8')]
+        grouped = group_networks_by_supernet(networks, prefixlen=24)
+        self.assertIn('10.0.0.0/8', grouped)
+        self.assertEqual(len(grouped['10.0.0.0/8']), 1)
+
 
 class TestAdvancedParseConfig(unittest.TestCase):
 

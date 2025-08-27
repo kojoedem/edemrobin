@@ -8,6 +8,7 @@ from database import get_db
 from models import SubnetStatus, User
 import crud
 from security import get_current_user
+from utils import group_networks_by_supernet
 
 router = APIRouter(prefix="/import", tags=["Import"])
 
@@ -69,42 +70,32 @@ def import_cisco_config(
 
     imported = 0
     if networks:
-        # Calculate single supernet
+        # Group networks by their /24 supernet
         nets_to_summarize = [n["network"] for n in networks]
-        first_ip = min(net.network_address for net in nets_to_summarize)
-        last_ip = max(net.broadcast_address for net in nets_to_summarize)
+        grouped_networks = group_networks_by_supernet(nets_to_summarize, prefixlen=24)
 
-        supernet = ipaddress.ip_network(f"{first_ip}/32")
-        while last_ip not in supernet:
-            supernet = supernet.supernet()
-
-        if supernet:
-            block = crud.get_or_create_block(
-                db, str(supernet), created_by=user.username, description="auto-import-cisco"
+        # Create blocks and subnets for each group
+        for supernet_cidr, sub_nets in grouped_networks.items():
+            parent_block = crud.get_or_create_block(
+                db, supernet_cidr, created_by=user.username, description="auto-import-cisco"
             )
-        else:
-            # Fallback or error
-            # For now, just process without a single block, though this case is unlikely with valid IPs
-            block = None
 
-        # Create subnets
-        for net_info in networks:
-            network = net_info["network"]
-            iface = net_info["iface"]
-            ip = net_info["ip"]
-            description = net_info["description"]
+            # Create subnets within this block
+            net_infos_in_group = [n for n in networks if n["network"] in sub_nets]
 
-            parent_block = block # Use the single block for all subnets
+            for net_info in net_infos_in_group:
+                network = net_info["network"]
+                iface = net_info["iface"]
+                ip = net_info["ip"]
+                description = net_info["description"]
 
-            if parent_block:
-                # Ensure subnet exists
                 subnet = crud.create_or_get_subnet(
                     db,
                     str(network.with_prefixlen),
                     parent_block,
                     status=SubnetStatus.imported,
                     created_by=user.username,
-                    description=description
+                    description=description,
                 )
 
                 # Add the interface address record

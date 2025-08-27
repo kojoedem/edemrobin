@@ -124,3 +124,21 @@ def parse_config(config_text: str):
     else:
         print("WARNING: Could not determine config type. Falling back to Cisco parser.")
         return parse_cisco_config(config_text)
+
+from collections import defaultdict
+
+def group_networks_by_supernet(networks: list[ipaddress.IPv4Network], prefixlen: int = 24) -> dict[str, list[ipaddress.IPv4Network]]:
+    """
+    Groups a list of ipaddress networks by a containing supernet of a given prefix length.
+    """
+    grouped = defaultdict(list)
+    for network in networks:
+        # Handle cases where the network is larger than the target prefixlen
+        if network.prefixlen < prefixlen:
+            supernet = network
+        else:
+            supernet = network.supernet(new_prefix=prefixlen)
+
+        grouped[str(supernet)].append(network)
+
+    return dict(grouped)
