@@ -675,6 +675,7 @@ def edit_allocation_page(request: Request, subnet_id: int, db: Session = Depends
         raise HTTPException(status_code=404, detail="Subnet not found")
 
     vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
+    blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
 
     return templates.TemplateResponse(
         "edit_allocation.html",
@@ -683,6 +684,7 @@ def edit_allocation_page(request: Request, subnet_id: int, db: Session = Depends
             "user": user,
             "subnet": subnet,
             "vlans": vlans,
+            "blocks": blocks,
         }
     )
 
@@ -693,14 +695,26 @@ def edit_allocation_action(
     subnet_id: int,
     description: str = Form(...),
     vlan_id: Optional[int] = Form(None),
+    block_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
     subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
     if not subnet:
         raise HTTPException(status_code=404, detail="Subnet not found")
 
+    # Also check if the new block exists
+    new_block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
+    if not new_block:
+        raise HTTPException(status_code=404, detail="Parent block not found")
+
     subnet.description = description
     subnet.vlan_id = vlan_id
+    subnet.block_id = block_id
+
+    # If moving to a real block from unassigned, mark as allocated
+    if subnet.status == models.SubnetStatus.inactive and new_block.cidr != "Unassigned":
+        subnet.status = models.SubnetStatus.allocated
+
     db.commit()
 
     return RedirectResponse(url="/", status_code=303)
