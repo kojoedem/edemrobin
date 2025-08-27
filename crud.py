@@ -35,6 +35,20 @@ def get_vlan_by_id(db: Session, vlan_id: int):
 def list_vlans(db: Session):
     return db.query(VLAN).order_by(VLAN.vlan_id).all()
 
+def get_or_create_vlan(db: Session, vlan_id: int, created_by: str, name: str | None = None) -> VLAN:
+    """
+    Gets a VLAN by its ID, or creates it if it doesn't exist.
+    A default name will be used if not provided.
+    """
+    vlan = get_vlan_by_id(db, vlan_id)
+    if vlan:
+        return vlan
+
+    if name is None:
+        name = f"VLAN-{vlan_id}"
+
+    return create_vlan(db, vlan_id=vlan_id, name=name, created_by=created_by)
+
 # ---------- Blocks & Subnets ----------
 def get_or_create_block(db: Session, cidr: str, created_by: str | None = None, description: str | None = None):
     block = db.query(IPBlock).filter(IPBlock.cidr == cidr).first()
@@ -113,54 +127,3 @@ def suggest_block_for_network(network: ipaddress.IPv4Network) -> str:
     if network.prefixlen <= 16:
         return str(network)
     return str(network.supernet(new_prefix=16))
-
-# ---------- Non-committing versions for bulk operations ----------
-
-def create_vlan_no_commit(db: Session, vlan_id: int, name: str, created_by: str, site: str | None = None) -> VLAN:
-    vlan = VLAN(vlan_id=vlan_id, name=name, created_by=created_by, site=site)
-    db.add(vlan)
-    return vlan
-
-def get_or_create_block_no_commit(db: Session, cidr: str, created_by: str | None = None, description: str | None = None) -> IPBlock:
-    block = db.query(IPBlock).filter(IPBlock.cidr == cidr).first()
-    if block:
-        return block
-    block = IPBlock(cidr=cidr, created_by=created_by, description=description)
-    db.add(block)
-    return block
-
-def create_or_get_subnet_no_commit(db: Session, cidr: str, block: IPBlock, status: SubnetStatus, created_by: str | None = None, vlan_id: int | None = None, description: str | None = None) -> Subnet:
-    sub = db.query(Subnet).filter(Subnet.cidr == cidr).first()
-    if sub:
-        return sub
-    sub = Subnet(
-        cidr=cidr,
-        status=status,
-        block_id=block.id,
-        vlan_id=vlan_id,
-        description=description,
-        created_by=created_by,
-    )
-    db.add(sub)
-    return sub
-
-def get_or_create_device_no_commit(db: Session, hostname: str, vendor: str = "cisco", model: str | None = None, mgmt_ip: str | None = None, site: str | None = None) -> Device:
-    dev = db.query(Device).filter(Device.hostname == hostname).first()
-    if dev:
-        return dev
-    dev = Device(hostname=hostname, vendor=vendor, model=model, mgmt_ip=mgmt_ip, site=site)
-    db.add(dev)
-    return dev
-
-def get_or_create_interface_no_commit(db: Session, device: Device, name: str, description: str | None = None, vlan_id: int | None = None) -> Interface:
-    itf = db.query(Interface).filter(Interface.device_id == device.id, Interface.name == name).first()
-    if itf:
-        return itf
-    itf = Interface(device_id=device.id, name=name, description=description, vlan_id=vlan_id)
-    db.add(itf)
-    return itf
-
-def add_interface_address_no_commit(db: Session, interface: Interface, ip: str, prefix: int, subnet_id: int | None = None) -> InterfaceAddress:
-    addr = InterfaceAddress(interface_id=interface.id, ip=ip, prefix=prefix, subnet_id=subnet_id)
-    db.add(addr)
-    return addr
