@@ -2,7 +2,7 @@
 import ipaddress
 from sqlalchemy.orm import Session
 from models import (
-    User, VLAN, IPBlock, Subnet, SubnetStatus, Device, Interface, InterfaceAddress
+    User, VLAN, IPBlock, Subnet, SubnetStatus, Device, Interface, InterfaceAddress, Client
 )
 from security import hash_password
 
@@ -20,6 +20,35 @@ def create_user(db: Session, username: str, password: str, level: int = 1, is_ad
     db.commit()
     db.refresh(user)
     return user
+
+
+# ---------- Clients ----------
+def create_client(db: Session, name: str) -> Client:
+    client = Client(name=name)
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return client
+
+def get_client(db: Session, client_id: int) -> Client | None:
+    return db.query(Client).filter(Client.id == client_id).first()
+
+def get_client_by_name(db: Session, name: str) -> Client | None:
+    return db.query(Client).filter(Client.name == name).first()
+
+def list_clients(db: Session) -> list[Client]:
+    return db.query(Client).order_by(Client.name).all()
+
+def delete_client(db: Session, client_id: int):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if client:
+        # Before deleting, ensure no subnets are associated with this client
+        if client.subnets:
+            raise ValueError("Cannot delete a client that has subnets associated with it.")
+        db.delete(client)
+        db.commit()
+    return client
+
 
 # ---------- VLAN ----------
 def create_vlan(db: Session, vlan_id: int, name: str, created_by: str, site: str | None = None):
@@ -60,7 +89,7 @@ def get_or_create_block(db: Session, cidr: str, created_by: str | None = None, d
     db.refresh(block)
     return block
 
-def create_or_get_subnet(db: Session, cidr: str, block: IPBlock, status: SubnetStatus, created_by: str | None = None, vlan_id: int | None = None, description: str | None = None):
+def create_or_get_subnet(db: Session, cidr: str, block: IPBlock, status: SubnetStatus, created_by: str | None = None, vlan_id: int | None = None, client_id: int | None = None, description: str | None = None):
     sub = db.query(Subnet).filter(Subnet.cidr == cidr).first()
     if sub:
         return sub
@@ -69,6 +98,7 @@ def create_or_get_subnet(db: Session, cidr: str, block: IPBlock, status: SubnetS
         status=status,
         block_id=block.id,
         vlan_id=vlan_id,
+        client_id=client_id,
         description=description,
         created_by=created_by,
     )
