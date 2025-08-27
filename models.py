@@ -74,6 +74,7 @@ class SubnetStatus(PyEnum):
     reserved = "reserved"
     deactivated = "deactivated"
     inactive = "inactive"
+    nat = "nat"
 
 
 class Subnet(Base):

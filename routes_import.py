@@ -67,6 +67,20 @@ def import_cisco_config(
             except ValueError:
                 pass
 
+    # Find NAT IPs from `ip route` commands
+    nat_ips = set()
+    route_lines = parse.find_lines(r"^ip\s+route\s+vrf")
+    for line in route_lines:
+        parts = line.split()
+        # Example: ip route vrf 2CTV-INT 41.189.178.110 255.255.255.255 ...
+        if len(parts) >= 4:
+            try:
+                # Validate that it's an IP address
+                ipaddress.ip_address(parts[3])
+                nat_ips.add(parts[3])
+            except ValueError:
+                continue
+
     # --- Creation Phase: Ensure all parent objects exist ---
 
     hostname = parse.find_lines(r"^hostname\s+")
@@ -118,11 +132,16 @@ def import_cisco_config(
 
                     assigned_parent = next((p_net for p_net in parent_networks if network.subnet_of(p_net)), None)
 
-                    status = SubnetStatus.imported
-                    if is_shutdown:
+                    # Determine status, with NAT taking precedence
+                    is_nat_ip = ip in nat_ips
+                    if is_nat_ip:
+                        status = SubnetStatus.nat
+                    elif is_shutdown:
                         status = SubnetStatus.deactivated
                     elif assigned_parent is None:
                         status = SubnetStatus.inactive
+                    else:
+                        status = SubnetStatus.imported
 
                     parent_cidr = str(assigned_parent) if assigned_parent else "Unassigned"
                     parent_block_obj = db.query(crud.IPBlock).filter(crud.IPBlock.cidr == parent_cidr).first()
