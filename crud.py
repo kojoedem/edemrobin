@@ -68,15 +68,21 @@ def get_or_create_vlan(db: Session, vlan_id: int, created_by: str, name: str | N
     """
     Gets a VLAN by its ID, or creates it if it doesn't exist.
     A default name will be used if not provided.
+    Handles potential name collisions by appending the VLAN ID.
     """
     vlan = get_vlan_by_id(db, vlan_id)
     if vlan:
         return vlan
 
-    if name is None:
-        name = f"VLAN-{vlan_id}"
+    final_name = name or f"VLAN-{vlan_id}"
 
-    return create_vlan(db, vlan_id=vlan_id, name=name, created_by=created_by)
+    # Check if a VLAN with this name already exists
+    existing_by_name = db.query(VLAN).filter(VLAN.name == final_name).first()
+    if existing_by_name:
+        # If the name is taken, append the VLAN ID to make it unique
+        final_name = f"{final_name} ({vlan_id})"
+
+    return create_vlan(db, vlan_id=vlan_id, name=final_name, created_by=created_by)
 
 # ---------- Blocks & Subnets ----------
 def get_or_create_block(db: Session, cidr: str, created_by: str | None = None, description: str | None = None):
