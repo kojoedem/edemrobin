@@ -69,11 +69,13 @@ def import_cisco_config(
     for line in route_lines:
         parts = line.split()
         iface_name = ""
+        # ip route vrf <vrf> <dest> <mask> <iface> ...
         if len(parts) >= 3 and parts[2] == "vrf":
-            if len(parts) >= 6:
-                iface_name = parts[5]
-        elif len(parts) >= 4:
-            iface_name = parts[3]
+            if len(parts) >= 7:
+                iface_name = parts[6]
+        # ip route <dest> <mask> <iface> ...
+        elif len(parts) >= 5:
+            iface_name = parts[4]
 
         if iface_name:
             client_name = interface_to_description.get(iface_name)
@@ -105,12 +107,12 @@ def import_cisco_config(
         ip_to_check = ""
         iface_name = ""
         if len(parts) >= 3 and parts[2] == "vrf":
-            if len(parts) >= 5:
+            if len(parts) >= 7:
                 ip_to_check = parts[4]
-                iface_name = parts[5]
-        elif len(parts) >= 3:
+                iface_name = parts[6]
+        elif len(parts) >= 5:
             ip_to_check = parts[2]
-            iface_name = parts[3]
+            iface_name = parts[4]
 
         if ip_to_check and iface_name:
             client_name = interface_to_description.get(iface_name)
