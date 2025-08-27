@@ -61,7 +61,7 @@ def import_cisco_config(
         name = intf.text.split(None, 1)[1].strip()
         iface = crud.get_or_create_interface(db, device, name)
 
-        is_shutdown = intf.is_shutdown
+        is_shutdown = len(intf.re_search_children(r"^\s*shutdown\s*$")) > 0
 
         description = ""
         desc_line = intf.re_search_children(r"^\s+description\s+")
