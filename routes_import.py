@@ -1,6 +1,7 @@
 import io
 import ipaddress
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, Form
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from ciscoconfparse import CiscoConfParse
 
@@ -63,6 +64,18 @@ def import_cisco_config(
 
         is_shutdown = len(intf.re_search_children(r"^\s*shutdown\s*$")) > 0
 
+        # Try to parse VLAN ID from sub-interface name
+        vlan_id_to_associate = None
+        if '.' in name:
+            try:
+                vlan_num = int(name.split('.')[-1])
+                vlan = crud.get_vlan_by_id(db, vlan_num)
+                if not vlan:
+                    vlan = crud.create_vlan(db, vlan_id=vlan_num, name=f"VLAN-{vlan_num}", created_by=user.username)
+                vlan_id_to_associate = vlan.id
+            except ValueError:
+                pass  # Not a valid VLAN sub-interface
+
         description = ""
         desc_line = intf.re_search_children(r"^\s+description\s+")
         if desc_line:
@@ -78,7 +91,8 @@ def import_cisco_config(
                     network = ipaddress.ip_network(f"{ip}/{mask}", strict=False)
                     networks_to_process.append({
                         "network": network, "iface": iface, "ip": ip,
-                        "description": description, "is_shutdown": is_shutdown
+                        "description": description, "is_shutdown": is_shutdown,
+                        "vlan_id": vlan_id_to_associate
                     })
                 except ValueError:
                     continue
@@ -116,6 +130,7 @@ def import_cisco_config(
                 parent_block_obj,
                 status=status,
                 created_by=user.username,
+                vlan_id=net_info["vlan_id"],
                 description=net_info["description"]
             )
 
@@ -123,4 +138,4 @@ def import_cisco_config(
             crud.add_interface_address(db, net_info["iface"], ip=net_info["ip"], prefix=network.prefixlen, subnet_id=subnet.id)
             imported += 1
 
-    return {"msg": f"Imported {imported} interface IP(s) from {file.filename}", "device": device.hostname}
+    return RedirectResponse(url="/", status_code=303)

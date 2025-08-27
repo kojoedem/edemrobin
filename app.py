@@ -73,8 +73,8 @@ def home(request: Request, block_id: Optional[int] = None, db: Session = Depends
         total_ips = parent_network.num_addresses
 
         used_ips = 0
-        # Filter subnets by status to not include 'imported' or 'inactive' as 'used' in the main stat
-        active_subnets = [s for s in block.subnets if s.status == models.SubnetStatus.allocated]
+        # Filter subnets by status to not include 'inactive' as 'used' in the main stat
+        active_subnets = [s for s in block.subnets if s.status in [models.SubnetStatus.allocated, models.SubnetStatus.imported]]
         for subnet in active_subnets:
             used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
