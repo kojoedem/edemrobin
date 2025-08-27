@@ -51,12 +51,19 @@ def import_cisco_config(
                 raise HTTPException(status_code=400, detail=f"Invalid CIDR format: {cidr}")
 
     intfs = parse.find_objects(r"^interface\s+")
+    vlan_info = {}
     for intf in intfs:
         name = intf.text.split(None, 1)[1].strip()
         if '.' in name:
             try:
                 vlan_num = int(name.split('.')[-1])
-                required_vlan_nums.add(vlan_num)
+                description = ""
+                desc_line = intf.re_search_children(r"^\s+description\s+")
+                if desc_line:
+                    description = desc_line[0].text.strip().split(None, 1)[1]
+                # Don't overwrite an existing description with an empty one
+                if vlan_num not in vlan_info or description:
+                    vlan_info[vlan_num] = description
             except ValueError:
                 pass
 
@@ -71,8 +78,10 @@ def import_cisco_config(
     for cidr in required_parent_cidrs:
         crud.get_or_create_block(db, cidr, created_by=user.username)
 
-    for vlan_num in required_vlan_nums:
-        crud.get_or_create_vlan(db, vlan_id=vlan_num, created_by=user.username)
+    for vlan_num, description in vlan_info.items():
+        # Use the description as the name, or fall back to a default
+        vlan_name = description if description else f"VLAN-{vlan_num}"
+        crud.get_or_create_vlan(db, vlan_id=vlan_num, created_by=user.username, name=vlan_name)
 
     # --- Second Pass: Import the data, now that parents are guaranteed to exist ---
 

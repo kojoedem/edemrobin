@@ -144,12 +144,15 @@ def allocate_ip_action(
             vlan_id=vlan_id,
             description=final_description
         )
+        return RedirectResponse("/dashboard/allocate_ip?success=1", status_code=303)
     except HTTPException as e:
-        # You can pass the error message to the template
-        # For now, just re-raise
-        raise e
-
-    return RedirectResponse("/dashboard/allocate_ip", status_code=303)
+        # Handle exceptions raised by allocate_subnet (e.g., no available space)
+        error_message = e.detail
+        return RedirectResponse(f"/dashboard/allocate_ip?error={error_message}", status_code=303)
+    except Exception as e:
+        # Handle other unexpected errors (like the IntegrityError)
+        error_message = f"An unexpected error occurred: {e}"
+        return RedirectResponse(f"/dashboard/allocate_ip?error={error_message}", status_code=303)
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
