@@ -1,5 +1,6 @@
 import io
 import ipaddress
+import re
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -168,9 +169,24 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
     if not parsed_data:
         return
 
-    required_client_names = {addr['comment'] for addr in parsed_data.get('addresses', []) if addr.get('comment')}
+    # --- Pre-process and cache VLANs for efficient lookup ---
+    vlans_by_name = {}
+    vlans_by_id = {}
+    for vlan_data in parsed_data.get('vlans', []):
+        try:
+            vlan_id = int(vlan_data.get('vlan-id'))
+            name = vlan_data.get('name')
+            if not name or not vlan_id:
+                continue
 
-    hostname = next((item['name'] for item in parsed_data.get('system', []) if 'name' in item), f"mikrotik-device-{filename}")
+            vlan_db = crud.get_or_create_vlan(db, vlan_id=vlan_id, name=name, created_by=user.username)
+            vlans_by_name[name] = vlan_db
+            vlans_by_id[vlan_id] = vlan_db
+        except (ValueError, TypeError):
+            continue
+
+    required_client_names = {addr.get('comment') for addr in parsed_data.get('addresses', []) if addr.get('comment')}
+    hostname = next((item.get('name') for item in parsed_data.get('system', []) if item.get('name')), f"mikrotik-device-{filename}")
     device = crud.get_or_create_device(db, hostname=hostname)
 
     for name in required_client_names:
@@ -178,8 +194,8 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
 
     for addr in parsed_data.get('addresses', []):
         try:
-            # Skip addresses that don't have an interface specified
-            if 'interface' not in addr or not addr['interface']:
+            iface_name = addr.get('interface')
+            if not iface_name:
                 continue
 
             iface_addr = ipaddress.ip_interface(addr['address'])
@@ -188,8 +204,23 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
             if str(network) in IGNORED_SUBNETS:
                 continue
 
-            iface_name = addr['interface']
             iface = crud.get_or_create_interface(db, device, iface_name)
+
+            # --- Advanced VLAN Matching Logic ---
+            linked_vlan_id = None
+            # Strategy 1: Direct name match
+            if iface_name in vlans_by_name:
+                linked_vlan_id = vlans_by_name[iface_name].id
+            # Strategy 2: Numeric match from interface name
+            else:
+                match = re.search(r'\d+', iface_name)
+                if match:
+                    try:
+                        num = int(match.group(0))
+                        if num in vlans_by_id:
+                            linked_vlan_id = vlans_by_id[num].id
+                    except (ValueError, KeyError):
+                        pass # No matching vlan_id found
 
             is_disabled = addr.get('disabled') == 'true'
             comment = addr.get('comment', '')
@@ -201,7 +232,13 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
             parent_block_obj = db.query(IPBlock).filter(IPBlock.cidr == parent_cidr).first()
 
             if parent_block_obj:
-                subnet = crud.create_or_get_subnet(db, str(network.with_prefixlen), parent_block_obj, status=status, created_by=user.username, client_id=client.id if client else None, description=comment)
+                subnet = crud.create_or_get_subnet(
+                    db, str(network.with_prefixlen), parent_block_obj,
+                    status=status, created_by=user.username,
+                    client_id=client.id if client else None,
+                    description=comment,
+                    vlan_id=linked_vlan_id  # Pass the found VLAN ID
+                )
                 crud.add_interface_address(db, iface, ip=str(iface_addr.ip), prefix=network.prefixlen, subnet_id=subnet.id)
         except ValueError:
             continue
