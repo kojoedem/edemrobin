@@ -19,12 +19,16 @@ from utils import parse_mikrotik_config
 
 @router.post("/config")
 def import_config(
-    user: User = Depends(permission_required("can_upload_config")),
+    request: Request,
+    db: Session = Depends(get_db),
     file: UploadFile = File(...),
     config_type: str = Form(...),
     parent_blocks: str = Form(""),
-    db: Session = Depends(get_db),
 ):
+    user = get_current_user(request, db)
+    if not user.is_admin and not user.can_upload_config:
+        raise HTTPException(status_code=403, detail="You do not have permission to upload configurations.")
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded.")
 
