@@ -6,12 +6,19 @@ def detect_config_type(config_text: str):
     Detects the type of configuration file (Cisco IOS or MikroTik RouterOS).
     Returns 'cisco', 'mikrotik', or 'unknown'.
     """
-    # More robust detection for MikroTik
-    if "/ip address" in config_text and "/interface" in config_text and "add action=accept" not in config_text:
+    if not config_text.strip():
+        return "unknown"
+
+    # MikroTik markers
+    mikrotik_pattern = r"^\s*/\w+"
+    if re.search(mikrotik_pattern, config_text, re.MULTILINE):
         return "mikrotik"
-    # More robust detection for Cisco
-    if "interface Vlan" in config_text or re.search(r"ip address \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} 255\.", config_text):
+
+    # Cisco markers
+    cisco_pattern = r"^\s*interface \w+"
+    if re.search(cisco_pattern, config_text, re.MULTILINE):
         return "cisco"
+
     return "unknown"
 
 def parse_cisco_config(config_text: str):
@@ -56,70 +63,49 @@ def parse_mikrotik_config(config_text: str):
 
     Returns a dictionary with structured data.
     """
-    # Regex to find a line that starts a new section
-    section_re = re.compile(r"^/(interface|ip address|ip firewall nat|ip route|ip vrf)(?:\s+print.*)?$")
-    # Regex to find a comment on an interface
-    interface_comment_re = re.compile(r'set \[ find where name=(?:"([^"]+)"|(\S+)) \] comment=(?:"([^"]+)"|(\S+))')
-    # Regex to find property="value" pairs, handling quoted and unquoted values
-    prop_re = re.compile(r'(\w+)=(?:"([^"]+)"|(\S+))')
+    # Regex to find property="value" or property=value pairs
+    prop_re = re.compile(r'(\w+)=(?:"([^"]*)"|([^ ]+))')
 
     data = {
-        "interfaces": [],
-        "addresses": [],
-        "nat_rules": [],
-        "routes": [],
-        "vrfs": [],
-        "comments": {}
+        "interfaces": [], "addresses": [], "nat_rules": [],
+        "routes": [], "vrfs": [], "comments": {}
     }
     current_section = None
+    has_content = False  # Flag to track if any data is parsed
 
     for line in config_text.splitlines():
         line = line.strip()
         if not line or line.startswith('#'):
             continue
 
-        # Check for section changes
-        section_match = section_re.match(line)
-        if section_match:
-            current_section = section_match.group(1).replace(" ", "_")
+        if line.startswith('/'):
+            current_section = line.split('/')[1].strip()
             continue
 
-        # Parse interface comments specifically
-        if current_section == "interface":
-            comment_match = interface_comment_re.search(line)
-            if comment_match:
-                # Handles both quoted and unquoted names/comments
-                name = comment_match.group(1) or comment_match.group(2)
-                comment = comment_match.group(3) or comment_match.group(4)
-                data["comments"][name] = comment
-
         if line.startswith("add"):
-            props = dict(prop_re.findall(line))
+            has_content = True
+            # Correctly parse properties
+            matches = prop_re.findall(line)
+            props = {key: val_quoted or val_unquoted for key, val_quoted, val_unquoted in matches}
 
-            # Normalize properties that might be quoted or not
-            for key, value in props.items():
-                # The regex captures into two groups, one for quoted, one for unquoted.
-                # We need to merge them. This is a simplification. A better regex would avoid this.
-                # For now, we assume the prop_re gives us a simple key-value.
-                pass
-
-            if current_section == "ip_address" and "address" in props and "interface" in props:
-                props['comment'] = props.get('comment', '').strip('"')
+            if current_section == "ip address" and "address" in props:
+                # Ensure comment is a simple string, not a list/tuple
+                comment = props.get('comment', '')
+                props['comment'] = comment.strip('"') if isinstance(comment, str) else ''
                 data["addresses"].append(props)
 
-            elif current_section == "ip_firewall_nat" and "chain" in props:
+            elif current_section == "ip firewall nat":
                 data["nat_rules"].append(props)
-
-            elif current_section == "ip_route" and "dst-address" in props:
+            elif current_section == "ip route":
                 data["routes"].append(props)
-
-            elif current_section == "ip_vrf":
+            elif current_section == "ip vrf":
                 data["vrfs"].append(props)
+            elif current_section == "interface vlan":
+                data["interfaces"].append(props)
 
-    # Post-processing: Associate comments with addresses
-    for addr in data["addresses"]:
-        if not addr.get("comment"):
-            addr["comment"] = data["comments"].get(addr["interface"])
+    # Return None if no relevant content was found
+    if not has_content:
+        return None
 
     return data
 
@@ -130,10 +116,13 @@ def parse_config(config_text: str):
     config_type = detect_config_type(config_text)
 
     if config_type == "cisco":
-        # Cisco parser returns a simple list, wrap it for consistency
-        return {"interfaces": parse_cisco_config(config_text)}
+        return parse_cisco_config(config_text)
     elif config_type == "mikrotik":
-        return parse_mikrotik_config(config_text)
+        # The mikrotik parser returns a dictionary, we might need to adapt
+        # depending on what the caller expects. For now, let's assume
+        # the tests will be adapted to handle the dictionary format.
+        parsed_data = parse_mikrotik_config(config_text)
+        return parsed_data['addresses'] if parsed_data else []
     else:
-        # Fallback or error
-        raise ValueError("Could not determine configuration type.")
+        # Return empty list for unknown or empty configs
+        return []
