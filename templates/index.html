@@ -8,7 +8,7 @@
 </div>
 
 <!-- Stat Cards -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
   <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
     <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total VLANs</h3>
     <p class="text-3xl font-bold text-slate-800 mt-1">{{ vlan_count }}</p>
@@ -29,7 +29,7 @@
 
 <!-- Block Utilization Stats -->
 <h2 class="text-xl font-semibold text-slate-600 mb-4">Block Utilization</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
   {% for stat in block_stats %}
     <a href="/?block_id={{ stat.block.id }}" class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 transition hover:shadow-md hover:border-sky-500 block">
       <h3 class="font-bold text-lg text-slate-800">{{ stat.block.cidr }}</h3>
@@ -54,9 +54,9 @@
 
 <!-- Allocations Table (conditional) -->
 {% if selected_block %}
-<div class="flex justify-between items-center mb-4">
+<div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
     <h2 class="text-xl font-semibold text-slate-600">Allocations in <span class="font-mono">{{ selected_block.cidr }}</span></h2>
-    <a href="/dashboard/allocate_ip" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">
+    <a href="/dashboard/allocate_ip" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition whitespace-nowrap">
       Allocate New Subnet
     </a>
 </div>
