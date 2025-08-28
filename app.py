@@ -87,8 +87,8 @@ def home(request: Request, db: Session = Depends(get_db)):
             used_ips = sum(ipaddress.ip_network(subnet.cidr).num_addresses for subnet in active_subnets)
             utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
 
-            # Get unique clients for the block
-            clients = {subnet.client for subnet in active_subnets if subnet.client}
+            # Get unique, active clients for the block
+            clients = {subnet.client for subnet in active_subnets if subnet.client and subnet.client.is_active}
 
             block_stats.append({
                 "block": block,
