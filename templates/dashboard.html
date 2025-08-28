@@ -72,17 +72,24 @@
                     <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
                         <div class="bg-gray-900 h-2.5 rounded-full" style="width: {{ stat.utilization }}%"></div>
                     </div>
+                    <div class="text-xs flex justify-between text-gray-500">
+                        <span>Used: {{ stat.used_ips|int }}</span>
+                        <span>Free: {{ stat.free_ips|int }}</span>
+                        <span>Total: {{ stat.total_ips|int }}</span>
+                    </div>
                     {% if stat.clients %}
-                    <div class="mt-2">
-                        <p class="text-xs text-gray-500 mb-1">Active Clients:</p>
-                        <div class="flex flex-wrap gap-2">
+                    <details class="mt-2">
+                        <summary class="cursor-pointer text-xs text-gray-500 mb-1">
+                            Active Clients ({{ stat.clients|length }})
+                        </summary>
+                        <div class="flex flex-wrap gap-2 pt-2">
                             {% for client in stat.clients|sort(attribute='name') %}
                             <a href="{{ url_for('client_detail_page', client_id=client.id) }}" class="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded-full hover:bg-gray-300">
                                 {{ client.name }}
                             </a>
                             {% endfor %}
                         </div>
-                    </div>
+                    </details>
                     {% endif %}
                 </div>
                 {% else %}

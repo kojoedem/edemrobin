@@ -5,6 +5,9 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from ciscoconfparse import CiscoConfParse
 
+# Define a list of subnets to ignore during import
+IGNORED_SUBNETS = ["10.128.128.0/24"]
+
 from database import get_db
 from models import SubnetStatus, User, IPBlock, NatIp
 import crud
@@ -142,6 +145,8 @@ def handle_cisco_import(db: Session, user: User, content: str, parent_networks: 
             if len(parts) < 4: continue
             try:
                 network = ipaddress.ip_network(f"{parts[2]}/{parts[3]}", strict=False)
+                if str(network) in IGNORED_SUBNETS:
+                    continue
                 assigned_parent = next((p_net for p_net in parent_networks if network.subnet_of(p_net)), None)
                 status = SubnetStatus.deactivated if is_shutdown else (SubnetStatus.imported if assigned_parent else SubnetStatus.inactive)
                 parent_cidr = str(assigned_parent) if assigned_parent else "Unassigned"
@@ -169,6 +174,9 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
         try:
             iface_addr = ipaddress.ip_interface(addr['address'])
             network = iface_addr.network
+
+            if str(network) in IGNORED_SUBNETS:
+                continue
 
             iface_name = addr['interface']
             iface = crud.get_or_create_interface(db, device, iface_name)

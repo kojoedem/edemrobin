@@ -90,10 +90,12 @@ def home(request: Request, db: Session = Depends(get_db)):
             # Get unique, active clients for the block
             clients = {subnet.client for subnet in active_subnets if subnet.client and subnet.client.is_active}
 
+            free_ips = total_ips - used_ips
             block_stats.append({
                 "block": block,
                 "total_ips": total_ips,
                 "used_ips": used_ips,
+                "free_ips": free_ips,
                 "utilization": utilization,
                 "clients": clients
             })
