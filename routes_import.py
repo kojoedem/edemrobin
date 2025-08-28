@@ -68,7 +68,7 @@ def import_config(
 
 
 def handle_cisco_import(db: Session, user: User, content: str, parent_networks: list, filename: str):
-    parse = CiscoConfParse(io.StringIO(content).splitlines(), factory=True)
+    parse = CiscoConfParse(content.splitlines(), factory=True)
 
     required_client_names = set()
     interface_to_description = {}
