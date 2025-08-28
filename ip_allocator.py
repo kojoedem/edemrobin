@@ -41,6 +41,9 @@ def allocate_subnet(
                 new_available.append(avail)
         available_ranges = new_available
 
+    # Sort the ranges to ensure we start from the lowest available address
+    available_ranges.sort()
+
     # Find the first available subnet in the calculated ranges
     for avail_range in available_ranges:
         if avail_range.prefixlen > subnet_size:
