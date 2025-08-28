@@ -45,12 +45,13 @@ def get_db():
 
 @app.on_event("startup")
 def bootstrap_admin():
+    app.state.startup_message = None
     db = SessionLocal()
     try:
         admin = crud.get_user_by_username(db, "admin")
         if not admin:
             crud.create_user(db, "admin", "admin123", level=3, is_admin=True)
-            print("\n⚠️ Default admin created: username=admin, password=admin123. Change immediately!\n")
+            app.state.startup_message = "Default admin created: username=admin, password=admin123. Change immediately!"
     finally:
         db.close()
 
@@ -142,7 +143,14 @@ def home(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    startup_message = getattr(app.state, "startup_message", None)
+    if startup_message:
+        app.state.startup_message = None  # Clear message after reading
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "error": None,
+        "startup_message": startup_message
+    })
 
 @app.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
