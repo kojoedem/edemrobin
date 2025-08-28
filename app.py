@@ -69,6 +69,9 @@ def home(request: Request, db: Session = Depends(get_db)):
     vlan_count = db.query(models.VLAN).count()
     client_count = db.query(models.Client).filter(models.Client.is_active == True).count()
 
+    # Pre-fetch all NAT IPs
+    all_nat_ips = db.query(models.NatIp).all()
+
     if user.is_admin:
         blocks_for_stats = db.query(models.IPBlock).filter(models.IPBlock.cidr != "Unassigned").order_by(models.IPBlock.cidr).all()
     else:
@@ -81,34 +84,42 @@ def home(request: Request, db: Session = Depends(get_db)):
             parent_network = ipaddress.ip_network(block.cidr)
             total_ips = parent_network.num_addresses
             used_ips = 0
-            # Get unique, active clients for the block
             clients = set()
 
-            # Get all subnets for the block once
-            all_subnets_in_block = block.subnets
-
-            for subnet in all_subnets_in_block:
+            # Subnet-based usage
+            for subnet in block.subnets:
                 if subnet.status == models.SubnetStatus.imported:
-                    # For imported subnets, count actual interface addresses
                     used_ips += db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == subnet.id).count()
                 elif subnet.status in [models.SubnetStatus.allocated, models.SubnetStatus.reserved]:
-                    # For allocated/reserved, count the whole subnet size
                     used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
-                # Update clients set
                 if subnet.client and subnet.client.is_active:
                     clients.add(subnet.client)
 
-            utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
+            # NAT IP-based usage
+            nat_ips_in_block = []
+            for nat_ip in all_nat_ips:
+                try:
+                    nat_addr = ipaddress.ip_interface(nat_ip.ip_address).ip
+                    if nat_addr in parent_network:
+                        nat_ips_in_block.append(nat_ip)
+                        used_ips += 1
+                        if nat_ip.client and nat_ip.client.is_active:
+                            clients.add(nat_ip.client)
+                except ValueError:
+                    continue
 
+            utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
             free_ips = total_ips - used_ips
+
             block_stats.append({
                 "block": block,
                 "total_ips": total_ips,
                 "used_ips": used_ips,
                 "free_ips": free_ips,
                 "utilization": utilization,
-                "clients": clients
+                "clients": clients,
+                "nat_ips": nat_ips_in_block
             })
         except ValueError:
             continue # Skip invalid CIDR in stats

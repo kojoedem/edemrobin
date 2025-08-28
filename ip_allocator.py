@@ -25,20 +25,30 @@ def allocate_subnet(
 
     # Get all subnets that are already allocated or imported for this block
     existing_subnets_q = db.query(Subnet).filter(Subnet.block_id == block_id).all()
-    existing_subnets = [ipaddress.ip_network(s.cidr) for s in existing_subnets_q]
+    existing_networks = [ipaddress.ip_network(s.cidr) for s in existing_subnets_q]
 
-    # Iterate through all possible subnets of the requested size
-    for candidate_subnet in parent_network.subnets(new_prefix=subnet_size):
+    # Collapse the existing networks to handle overlaps and adjacencies
+    collapsed_existing = list(ipaddress.collapse_addresses(existing_networks))
 
-        # Check if the candidate subnet overlaps with any of the existing subnets.
-        is_overlapping = False
-        for existing in existing_subnets:
-            if candidate_subnet.overlaps(existing):
-                is_overlapping = True
-                break
+    # Calculate the available ranges by excluding the existing networks from the parent
+    available_ranges = [parent_network]
+    for existing in collapsed_existing:
+        new_available = []
+        for avail in available_ranges:
+            if avail.overlaps(existing):
+                new_available.extend(list(avail.address_exclude(existing)))
+            else:
+                new_available.append(avail)
+        available_ranges = new_available
 
-        # If it doesn't overlap, we've found our available subnet
-        if not is_overlapping:
+    # Find the first available subnet in the calculated ranges
+    for avail_range in available_ranges:
+        if avail_range.prefixlen > subnet_size:
+            continue  # This range is smaller than the requested subnet size
+
+        # Iterate through possible subnets in the available range
+        for candidate_subnet in avail_range.subnets(new_prefix=subnet_size):
+            # Since we are iterating within an available range, the first one we find is guaranteed to be free
             new_allocation = Subnet(
                 cidr=str(candidate_subnet),
                 status=SubnetStatus.allocated,
