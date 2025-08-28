@@ -80,15 +80,26 @@ def home(request: Request, db: Session = Depends(get_db)):
         try:
             parent_network = ipaddress.ip_network(block.cidr)
             total_ips = parent_network.num_addresses
-            active_subnets = [
-                s for s in block.subnets
-                if s.status in [models.SubnetStatus.allocated, models.SubnetStatus.imported, models.SubnetStatus.reserved]
-            ]
-            used_ips = sum(ipaddress.ip_network(subnet.cidr).num_addresses for subnet in active_subnets)
-            utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
-
+            used_ips = 0
             # Get unique, active clients for the block
-            clients = {subnet.client for subnet in active_subnets if subnet.client and subnet.client.is_active}
+            clients = set()
+
+            # Get all subnets for the block once
+            all_subnets_in_block = block.subnets
+
+            for subnet in all_subnets_in_block:
+                if subnet.status == models.SubnetStatus.imported:
+                    # For imported subnets, count actual interface addresses
+                    used_ips += db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == subnet.id).count()
+                elif subnet.status in [models.SubnetStatus.allocated, models.SubnetStatus.reserved]:
+                    # For allocated/reserved, count the whole subnet size
+                    used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
+
+                # Update clients set
+                if subnet.client and subnet.client.is_active:
+                    clients.add(subnet.client)
+
+            utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
 
             free_ips = total_ips - used_ips
             block_stats.append({
