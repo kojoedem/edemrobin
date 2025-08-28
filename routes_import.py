@@ -178,6 +178,10 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
 
     for addr in parsed_data.get('addresses', []):
         try:
+            # Skip addresses that don't have an interface specified
+            if 'interface' not in addr or not addr['interface']:
+                continue
+
             iface_addr = ipaddress.ip_interface(addr['address'])
             network = iface_addr.network
 
