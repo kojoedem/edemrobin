@@ -207,10 +207,10 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
             iface = crud.get_or_create_interface(db, device, iface_name)
 
             # --- Advanced VLAN Matching Logic ---
-            linked_vlan_id = None
+            linked_vlan_object = None
             # Strategy 1: Direct name match
             if iface_name in vlans_by_name:
-                linked_vlan_id = vlans_by_name[iface_name].id
+                linked_vlan_object = vlans_by_name[iface_name]
             # Strategy 2: Numeric match from interface name
             else:
                 match = re.search(r'\d+', iface_name)
@@ -218,12 +218,21 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                     try:
                         num = int(match.group(0))
                         if num in vlans_by_id:
-                            linked_vlan_id = vlans_by_id[num].id
+                            linked_vlan_object = vlans_by_id[num]
                     except (ValueError, KeyError):
                         pass # No matching vlan_id found
 
-            is_disabled = addr.get('disabled') == 'true'
+            # --- Description Logic ---
             comment = addr.get('comment', '')
+            description = comment
+            if not description:
+                if linked_vlan_object:
+                    description = linked_vlan_object.name
+                else:
+                    description = iface_name
+
+            is_disabled = addr.get('disabled') == 'true'
+            # Client is always looked up by comment, as that's the customer identifier
             client = crud.get_client_by_name(db, comment) if comment else None
 
             assigned_parent = next((p_net for p_net in parent_networks if network.subnet_of(p_net)), None)
@@ -236,8 +245,8 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                     db, str(network.with_prefixlen), parent_block_obj,
                     status=status, created_by=user.username,
                     client_id=client.id if client else None,
-                    description=comment,
-                    vlan_id=linked_vlan_id  # Pass the found VLAN ID
+                    description=description,
+                    vlan_id=linked_vlan_object.id if linked_vlan_object else None
                 )
                 crud.add_interface_address(db, iface, ip=str(iface_addr.ip), prefix=network.prefixlen, subnet_id=subnet.id)
         except ValueError:
