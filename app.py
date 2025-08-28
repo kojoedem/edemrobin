@@ -408,11 +408,11 @@ def create_client_action(request: Request, name: str = Form(...), db: Session = 
 
 @app.post("/admin/clients/bulk_action")
 @admin_required
-def client_bulk_action(request: Request, action: str = Form(...), selected_clients: List[int] = Form([]), db: Session = Depends(get_db)):
-    if not selected_clients:
+def client_bulk_action(request: Request, action: str = Form(...), client_ids: List[int] = Form([]), db: Session = Depends(get_db)):
+    if not client_ids:
         return RedirectResponse(url="/admin/clients", status_code=303) # Or show a message
 
-    clients_query = db.query(models.Client).filter(models.Client.id.in_(selected_clients))
+    clients_query = db.query(models.Client).filter(models.Client.id.in_(client_ids))
 
     if action == "delete":
         for client in clients_query.all():
