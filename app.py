@@ -342,10 +342,13 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
 # --- Client Management ---
 @app.get("/admin/clients", response_class=HTMLResponse)
 @admin_required
-def admin_clients_page(request: Request, db: Session = Depends(get_db)):
+def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
-    clients = db.query(models.Client).order_by(models.Client.name).all()
-    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients})
+    clients_query = db.query(models.Client)
+    if query:
+        clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
+    clients = clients_query.order_by(models.Client.name).all()
+    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query})
 
 @app.post("/admin/clients/create")
 @admin_required
