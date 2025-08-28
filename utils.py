@@ -67,7 +67,7 @@ def parse_mikrotik_config(config_text: str):
     prop_re = re.compile(r'(\w+)=(?:"([^"]*)"|([^ ]+))')
 
     data = {
-        "interfaces": [], "addresses": [], "nat_rules": [],
+        "vlans": [], "addresses": [], "nat_rules": [],
         "routes": [], "vrfs": [], "comments": {}
     }
     current_section = None
@@ -101,7 +101,7 @@ def parse_mikrotik_config(config_text: str):
             elif current_section == "ip vrf":
                 data["vrfs"].append(props)
             elif current_section == "interface vlan":
-                data["interfaces"].append(props)
+                data["vlans"].append(props)
 
     # Return None if no relevant content was found
     if not has_content:
