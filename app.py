@@ -17,7 +17,7 @@ from security import hash_password, verify_password, get_current_user, login_req
 
 from routes_import import router as import_router
 from routes_allocate import router as allocate_router
-
+from routes_dashboard import router as dashboard_router
 from routes_vlan import router as vlan_router
 from utils import parse_config
 
@@ -33,6 +33,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(import_router)
 app.include_router(allocate_router)
 app.include_router(vlan_router)
+app.include_router(dashboard_router)
 
 
 def get_db():
@@ -103,46 +104,6 @@ def home(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@app.post("/allocate")
-@level_required(2)
-def allocate_ip_action(
-    request: Request,
-    block_id: int = Form(...),
-    subnet_size: int = Form(...),
-    vlan_id: Optional[int] = Form(None),
-    description: str = Form(...),
-    description_format: str = Form("uppercase"),
-    db: Session = Depends(get_db),
-):
-    user = get_current_user(request, db)
-
-    # Apply description formatting
-    if description_format == "uppercase":
-        final_description = description.upper()
-    elif description_format == "lowercase":
-        final_description = description.lower()
-    elif description_format == "hyphen":
-        final_description = description.replace(" ", "-")
-    elif description_format == "underscore":
-        final_description = description.replace(" ", "_")
-    else:
-        final_description = description
-
-    try:
-        new_subnet = allocate_subnet(
-            db,
-            block_id=block_id,
-            user=user,
-            subnet_size=subnet_size,
-            vlan_id=vlan_id,
-            description=final_description
-        )
-    except HTTPException as e:
-        # You can pass the error message to the template
-        # For now, just re-raise
-        raise e
-
-    return RedirectResponse("/dashboard/allocate_ip", status_code=303)
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
