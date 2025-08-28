@@ -11,7 +11,8 @@ def allocate_subnet(
     user: User,
     subnet_size: int,
     vlan_id: Optional[int] = None,
-    description: str="",
+    description: str = "",
+    client_id: Optional[int] = None,
 ):
     """
     Finds the next available subnet of a given size within a parent block.
@@ -80,6 +81,7 @@ def allocate_subnet(
                 description=description,
                 created_by=user.username,
                 block_id=block.id,
+                client_id=client_id,
             )
             db.add(new_allocation)
             db.commit()

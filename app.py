@@ -86,29 +86,38 @@ def home(request: Request, db: Session = Depends(get_db)):
             total_ips = parent_network.num_addresses
             used_ips = 0
             clients = set()
+            nat_ips_in_block = []
 
             # Subnet-based usage
-            for subnet in block.subnets:
+            subnets_in_block = db.query(models.Subnet).filter(models.Subnet.block_id == block.id).all()
+            for subnet in subnets_in_block:
                 if subnet.status == models.SubnetStatus.imported:
                     used_ips += db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == subnet.id).count()
                 elif subnet.status in [models.SubnetStatus.allocated, models.SubnetStatus.reserved]:
                     used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
-                if subnet.client and subnet.client.is_active:
-                    clients.add(subnet.client)
-
             # NAT IP-based usage
-            nat_ips_in_block = []
             for nat_ip in all_nat_ips:
                 try:
                     nat_addr = ipaddress.ip_interface(nat_ip.ip_address).ip
                     if nat_addr in parent_network:
                         nat_ips_in_block.append(nat_ip)
                         used_ips += 1
-                        if nat_ip.client and nat_ip.client.is_active:
-                            clients.add(nat_ip.client)
                 except ValueError:
                     continue
+
+            # Gather active clients from subnets in this block
+            subnet_clients = db.query(models.Client).join(models.Subnet).filter(
+                models.Subnet.block_id == block.id,
+                models.Client.is_active == True
+            ).distinct()
+            for c in subnet_clients:
+                clients.add(c)
+
+            # Gather active clients from NAT IPs in this block
+            for nat_ip in nat_ips_in_block:
+                if nat_ip.client and nat_ip.client.is_active:
+                    clients.add(nat_ip.client)
 
             utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
             free_ips = total_ips - used_ips
@@ -298,6 +307,17 @@ def create_block(
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
+
+    # Check if block already exists
+    existing_block = db.query(models.IPBlock).filter(models.IPBlock.cidr == cidr).first()
+    if existing_block:
+        # Redirect back to the page with an error message
+        return RedirectResponse(url=f"/admin/blocks?error=IP Block {cidr} already exists.", status_code=303)
+
+    # Check if block with this CIDR already exists
+    existing_block = db.query(models.IPBlock).filter(models.IPBlock.cidr == cidr).first()
+    if existing_block:
+        return RedirectResponse(url=f"/admin/blocks?error=IP Block {cidr} already exists", status_code=303)
 
     # Create the new block
     new_block = models.IPBlock(
