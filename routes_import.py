@@ -154,8 +154,10 @@ def handle_cisco_import(db: Session, user: User, content: str, parent_networks: 
 
 def handle_mikrotik_import(db: Session, user: User, content: str, parent_networks: list, filename: str):
     parsed_data = parse_mikrotik_config(content)
+    if not parsed_data:
+        return
 
-    required_client_names = {addr['comment'] for addr in parsed_data['addresses'] if addr.get('comment')}
+    required_client_names = {addr['comment'] for addr in parsed_data.get('addresses', []) if addr.get('comment')}
 
     hostname = next((item['name'] for item in parsed_data.get('system', []) if 'name' in item), f"mikrotik-device-{filename}")
     device = crud.get_or_create_device(db, hostname=hostname)
@@ -163,9 +165,11 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
     for name in required_client_names:
         crud.get_or_create_client(db, name=name, is_active=False)
 
-    for addr in parsed_data['addresses']:
+    for addr in parsed_data.get('addresses', []):
         try:
-            network = ipaddress.ip_network(addr['address'], strict=False)
+            iface_addr = ipaddress.ip_interface(addr['address'])
+            network = iface_addr.network
+
             iface_name = addr['interface']
             iface = crud.get_or_create_interface(db, device, iface_name)
 
@@ -180,7 +184,7 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
 
             if parent_block_obj:
                 subnet = crud.create_or_get_subnet(db, str(network.with_prefixlen), parent_block_obj, status=status, created_by=user.username, client_id=client.id if client else None, description=comment)
-                crud.add_interface_address(db, iface, ip=str(network.ip), prefix=network.prefixlen, subnet_id=subnet.id)
+                crud.add_interface_address(db, iface, ip=str(iface_addr.ip), prefix=network.prefixlen, subnet_id=subnet.id)
         except ValueError:
             continue
 
