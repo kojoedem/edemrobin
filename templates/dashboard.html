@@ -3,8 +3,9 @@
 {% block title %}Dashboard - IPDB{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-6">
-    <div class="sticky top-0 z-10 bg-slate-50 py-4">
+<div class="flex flex-col h-full">
+    <!-- Sticky Header -->
+    <div class="flex-shrink-0 sticky top-0 z-10 bg-slate-50 px-4 pt-6">
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="bg-white rounded-lg shadow p-6 flex items-center justify-between">
@@ -46,7 +47,7 @@
         </div>
 
         <!-- Search Bar -->
-        <div class="mb-8">
+        <div class="pb-8">
             <form action="/dashboard/search" method="get" class="relative">
                 <input type="search" name="query" placeholder="Search for IPs, Subnets, Clients, VLANs..."
                        class="w-full pl-10 pr-4 py-3 border rounded-full text-lg focus:ring-indigo-500 focus:border-indigo-500">
@@ -57,8 +58,10 @@
         </div>
     </div>
 
-    <!-- Utilization & Recent Allocations -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Scrollable Content -->
+    <div class="flex-grow overflow-y-auto px-4 pb-6">
+        <!-- Utilization & Recent Allocations -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- IP Block Utilization -->
         <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
             <h2 class="text-lg font-semibold mb-4">IP Block Utilization</h2>
@@ -149,6 +152,7 @@
                 <p class="text-center text-gray-500">No recent allocations.</p>
                 {% endfor %}
             </ul>
+        </div>
         </div>
     </div>
 </div>
