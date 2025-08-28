@@ -185,12 +185,11 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
         except (ValueError, TypeError):
             continue
 
-    required_client_names = {addr.get('comment') for addr in parsed_data.get('addresses', []) if addr.get('comment')}
     hostname = next((item.get('name') for item in parsed_data.get('system', []) if item.get('name')), f"mikrotik-device-{filename}")
     device = crud.get_or_create_device(db, hostname=hostname)
 
-    for name in required_client_names:
-        crud.get_or_create_client(db, name=name, is_active=False)
+    # The logic now creates clients inside the address loop based on the final description.
+    # The pre-creation of clients based on comments is no longer needed.
 
     for addr in parsed_data.get('addresses', []):
         try:
@@ -222,7 +221,7 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                     except (ValueError, KeyError):
                         pass # No matching vlan_id found
 
-            # --- Description Logic ---
+            # --- Description and Client Logic ---
             comment = addr.get('comment', '')
             description = comment
             if not description:
