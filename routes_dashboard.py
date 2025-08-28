@@ -15,7 +15,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/dashboard/upload_config", response_class=HTMLResponse)
-@login_required
+@level_required(2)
 def upload_config_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})

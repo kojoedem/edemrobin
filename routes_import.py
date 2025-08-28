@@ -11,17 +11,13 @@ IGNORED_SUBNETS = ["10.128.128.0/24"]
 from database import get_db
 from models import SubnetStatus, User, IPBlock, NatIp
 import crud
-from security import get_current_user
+from security import get_current_user, level_required
 
 router = APIRouter(prefix="/import", tags=["Import"])
 
-def require_admin(user: User = Depends(get_current_user)):
-    if not user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-
 from utils import parse_mikrotik_config
 
-@router.post("/config", dependencies=[Depends(require_admin)])
+@router.post("/config", dependencies=[Depends(level_required(2))])
 def import_config(
     request: Request,
     file: UploadFile = File(...),
