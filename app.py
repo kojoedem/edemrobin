@@ -50,7 +50,12 @@ def bootstrap_admin():
     try:
         admin = crud.get_user_by_username(db, "admin")
         if not admin:
-            crud.create_user(db, "admin", "admin123", level=3, is_admin=True)
+            user_data = schemas.UserCreate(
+                username="admin",
+                password="admin123",
+                is_admin=True
+            )
+            crud.create_user(db, user_data)
             app.state.startup_message = "Default admin created: username=admin, password=admin123. Change immediately!"
     finally:
         db.close()
