@@ -17,15 +17,14 @@ router = APIRouter(prefix="/import", tags=["Import"])
 
 from utils import parse_mikrotik_config
 
-@router.post("/config", dependencies=[Depends(permission_required("can_upload_config"))])
+@router.post("/config")
 def import_config(
-    request: Request,
+    user: User = Depends(permission_required("can_upload_config")),
     file: UploadFile = File(...),
     config_type: str = Form(...),
     parent_blocks: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    user = get_current_user(request, db)
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded.")
 
