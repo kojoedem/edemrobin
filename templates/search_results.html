@@ -36,24 +36,28 @@
         <div class="mb-10">
             <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Subnets</h2>
             <div class="space-y-3">
-                {% for subnet in subnets %}
+                {% for data in subnets %}
                 <div class="bg-white rounded-lg shadow p-4">
                     <div class="flex justify-between items-center">
-                        <p class="font-mono text-lg">{{ subnet.cidr }}</p>
+                        <p class="font-mono text-lg">{{ data.subnet.cidr }}</p>
                         <span class="text-sm font-semibold px-2 py-1 rounded-full
-                            {% if subnet.status.name == 'allocated' %}bg-blue-100 text-blue-800
-                            {% elif subnet.status.name == 'imported' %}bg-purple-100 text-purple-800
-                            {% elif subnet.status.name == 'inactive' %}bg-gray-100 text-gray-800
-                            {% elif subnet.status.name == 'deactivated' %}bg-red-100 text-red-800
+                            {% if data.subnet.status.name == 'allocated' %}bg-blue-100 text-blue-800
+                            {% elif data.subnet.status.name == 'imported' %}bg-purple-100 text-purple-800
+                            {% elif data.subnet.status.name == 'inactive' %}bg-gray-100 text-gray-800
+                            {% elif data.subnet.status.name == 'deactivated' %}bg-red-100 text-red-800
                             {% endif %}">
-                            {{ subnet.status.name|capitalize }}
+                            {{ data.subnet.status.name|capitalize }}
                         </span>
                     </div>
-                    <p class="text-gray-600">{{ subnet.description or 'No description' }}</p>
+                    <p class="text-gray-600">{{ data.subnet.description or 'No description' }}</p>
+                    <div class="text-sm text-gray-500 mt-2 border-t pt-2">
+                        <p><strong>Usable Range:</strong> <span class="font-mono">{{ data.usable_range }}</span></p>
+                        <p><strong>Broadcast IP:</strong> <span class="font-mono">{{ data.broadcast }}</span></p>
+                    </div>
                     <div class="text-sm text-gray-500 mt-2">
-                        <span>Parent: <a href="/?block_id={{ subnet.block.id }}" class="text-indigo-600 hover:underline">{{ subnet.block.cidr }}</a></span>
-                        {% if subnet.client %} | <span>Client: <a href="/clients/{{ subnet.client.id }}" class="text-indigo-600 hover:underline">{{ subnet.client.name }}</a></span>{% endif %}
-                        {% if subnet.vlan %} | <span>VLAN: {{ subnet.vlan.vlan_id }}</span>{% endif %}
+                        <span>Parent: <a href="/?block_id={{ data.subnet.block.id }}" class="text-indigo-600 hover:underline">{{ data.subnet.block.cidr }}</a></span>
+                        {% if data.subnet.client %} | <span>Client: <a href="/clients/{{ data.subnet.client.id }}" class="text-indigo-600 hover:underline">{{ data.subnet.client.name }}</a></span>{% endif %}
+                        {% if data.subnet.vlan %} | <span>VLAN: {{ data.subnet.vlan.vlan_id }}</span>{% endif %}
                     </div>
                 </div>
                 {% endfor %}

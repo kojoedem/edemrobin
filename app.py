@@ -80,11 +80,22 @@ def home(request: Request, db: Session = Depends(get_db)):
         try:
             parent_network = ipaddress.ip_network(block.cidr)
             total_ips = parent_network.num_addresses
-            active_subnets = [s for s in block.subnets if s.status == models.SubnetStatus.allocated]
+            active_subnets = [
+                s for s in block.subnets
+                if s.status in [models.SubnetStatus.allocated, models.SubnetStatus.imported, models.SubnetStatus.reserved]
+            ]
             used_ips = sum(ipaddress.ip_network(subnet.cidr).num_addresses for subnet in active_subnets)
             utilization = (used_ips / total_ips) * 100 if total_ips > 0 else 0
+
+            # Get unique clients for the block
+            clients = {subnet.client for subnet in active_subnets if subnet.client}
+
             block_stats.append({
-                "block": block, "total_ips": total_ips, "used_ips": used_ips, "utilization": utilization
+                "block": block,
+                "total_ips": total_ips,
+                "used_ips": used_ips,
+                "utilization": utilization,
+                "clients": clients
             })
         except ValueError:
             continue # Skip invalid CIDR in stats
@@ -418,13 +429,34 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
     # Search Clients
     clients = db.query(models.Client).filter(models.Client.name.ilike(f"%{query}%")).all()
 
-    # Search Subnets
-    subnets = db.query(models.Subnet).filter(
-        or_(
-            models.Subnet.cidr.ilike(f"%{query}%"),
-            models.Subnet.description.ilike(f"%{query}%")
-        )
-    ).all()
+    # Search Subnets and IPs
+    subnets_data = []
+    try:
+        # Check if query is an IP address, then find its containing subnet
+        ip_addr = ipaddress.ip_address(query)
+        all_subnets = db.query(models.Subnet).all()
+        found_subnets = [s for s in all_subnets if ip_addr in ipaddress.ip_network(s.cidr)]
+    except ValueError:
+        # If not an IP, search by CIDR or description
+        found_subnets = db.query(models.Subnet).filter(
+            or_(
+                models.Subnet.cidr.ilike(f"%{query}%"),
+                models.Subnet.description.ilike(f"%{query}%")
+            )
+        ).all()
+
+    for subnet in found_subnets:
+        try:
+            network = ipaddress.ip_network(subnet.cidr)
+            hosts = list(network.hosts())
+            subnets_data.append({
+                "subnet": subnet,
+                "broadcast": network.broadcast_address,
+                "usable_range": f"{hosts[0]} - {hosts[-1]}" if hosts else "N/A"
+            })
+        except (ValueError, IndexError):
+            subnets_data.append({"subnet": subnet, "broadcast": "N/A", "usable_range": "N/A"})
+
 
     # Search VLANs
     vlan_filter = [models.VLAN.name.ilike(f"%{query}%")]
@@ -434,7 +466,7 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
 
     return templates.TemplateResponse("search_results.html", {
         "request": request, "user": user, "query": query,
-        "clients": clients, "subnets": subnets, "vlans": vlans
+        "clients": clients, "subnets": subnets_data, "vlans": vlans
     })
 
 
