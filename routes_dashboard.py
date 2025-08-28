@@ -74,6 +74,9 @@ def allocate_ip_action(
     else:
         final_description = description
 
+    # Get or create the client based on the description
+    client = crud.get_or_create_client(db, name=description)
+
     try:
         new_subnet = allocate_subnet(
             db,
@@ -81,7 +84,8 @@ def allocate_ip_action(
             user=user,
             subnet_size=subnet_size,
             vlan_id=vlan_id,
-            description=final_description
+            description=final_description,
+            client_id=client.id
         )
     except HTTPException as e:
         # You can pass the error message to the template
