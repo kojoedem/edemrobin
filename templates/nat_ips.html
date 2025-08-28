@@ -7,7 +7,7 @@
     <h1 class="text-2xl font-bold text-slate-700">NAT IPs</h1>
     <p class="text-slate-500">A list of all NAT IPs, either imported or manually created.</p>
   </div>
-  {% if user.level >= 2 %}
+  {% if user.can_manage_nat or user.is_admin %}
   <a href="/dashboard/add_nat_ip" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition whitespace-nowrap">
     Add NAT IP
   </a>

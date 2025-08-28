@@ -110,7 +110,7 @@
           {% endif %}
         </td>
         <td class="p-4 text-sm whitespace-nowrap">
-          {% if alloc.status.name == 'inactive' and user.level >= 2 %}
+          {% if alloc.status.name == 'inactive' and (user.can_manage_allocations or user.is_admin) %}
             <form action="/dashboard/allocations/{{ alloc.id }}/activate" method="post" class="inline-block">
                 <button type="submit" class="text-green-600 hover:underline font-semibold">Activate</button>
             </form>
