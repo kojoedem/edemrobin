@@ -116,6 +116,30 @@
                                 {% endfor %}
                             </tbody>
                         </table>
+
+                        {% if stat.nat_ips %}
+                        <div class="mt-4">
+                            <h4 class="text-sm font-semibold mb-2">NAT IPs in this Block</h4>
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="text-left p-2">IP Address</th>
+                                        <th class="text-left p-2">Description</th>
+                                        <th class="text-left p-2">Client</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for nat_ip in stat.nat_ips %}
+                                    <tr class="border-b last:border-b-0">
+                                        <td class="p-2 font-mono">{{ nat_ip.ip_address }} (NAT IP)</td>
+                                        <td class="p-2">{{ nat_ip.description }}</td>
+                                        <td class="p-2">{{ nat_ip.client.name if nat_ip.client else 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
                         {% if stat.clients %}
                         <details class="mt-4">
                             <summary class="cursor-pointer text-xs text-gray-500 mb-1">
