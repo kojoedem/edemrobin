@@ -230,10 +230,14 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                 else:
                     description = iface_name
 
-            is_disabled = addr.get('disabled') == 'true'
-            # Client is always looked up by comment, as that's the customer identifier
-            client = crud.get_client_by_name(db, comment) if comment else None
+            # If no meaningful description could be found, skip this entry
+            if not description:
+                continue
 
+            # Ensure a client exists for this description
+            client = crud.get_or_create_client(db, name=description, is_active=False)
+
+            is_disabled = addr.get('disabled') == 'true'
             assigned_parent = next((p_net for p_net in parent_networks if network.subnet_of(p_net)), None)
             status = SubnetStatus.deactivated if is_disabled else (SubnetStatus.imported if assigned_parent else SubnetStatus.inactive)
             parent_cidr = str(assigned_parent) if assigned_parent else "Unassigned"
