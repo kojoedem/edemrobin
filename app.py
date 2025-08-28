@@ -397,7 +397,7 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
 
 # --- Client Management ---
 @app.get("/admin/clients", response_class=HTMLResponse)
-@admin_required
+@level_required(1)
 def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
     clients_query = db.query(models.Client)
@@ -407,13 +407,13 @@ def admin_clients_page(request: Request, db: Session = Depends(get_db), query: O
     return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query})
 
 @app.post("/admin/clients/create")
-@admin_required
+@level_required(2)
 def create_client_action(request: Request, name: str = Form(...), db: Session = Depends(get_db)):
     crud.get_or_create_client(db, name=name, is_active=True)
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.post("/admin/clients/bulk_action")
-@admin_required
+@level_required(2)
 def client_bulk_action(request: Request, action: str = Form(...), client_ids: List[int] = Form([]), db: Session = Depends(get_db)):
     if not client_ids:
         return RedirectResponse(url="/admin/clients", status_code=303) # Or show a message
@@ -434,7 +434,7 @@ def client_bulk_action(request: Request, action: str = Form(...), client_ids: Li
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.post("/admin/clients/{client_id}/toggle_status")
-@admin_required
+@level_required(2)
 def toggle_client_status(request: Request, client_id: int, db: Session = Depends(get_db)):
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
@@ -444,7 +444,7 @@ def toggle_client_status(request: Request, client_id: int, db: Session = Depends
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.post("/admin/clients/{client_id}/delete")
-@admin_required
+@level_required(2)
 def delete_client_action(request: Request, client_id: int, db: Session = Depends(get_db)):
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
