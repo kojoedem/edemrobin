@@ -109,26 +109,33 @@ def handle_cisco_import(db: Session, user: User, content: str, parent_networks: 
     for line in route_lines:
         parts = line.split()
         ip_to_check = ""
+        mask = ""
         iface_name = ""
-        # Handle VRF routes: ip route vrf NAME ...
-        if len(parts) >= 3 and parts[2] == "vrf":
-            if len(parts) >= 7:
-                ip_to_check = parts[4]
-                iface_name = parts[6]
-        # Handle global routes
+
+        # Handle VRF routes: ip route vrf NAME A.B.C.D M.M.M.M IFACE ...
+        if len(parts) >= 7 and parts[2] == "vrf":
+            ip_to_check = parts[4]
+            mask = parts[5]
+            iface_name = parts[6]
+        # Handle global routes: ip route A.B.C.D M.M.M.M IFACE ...
         elif len(parts) >= 5:
             ip_to_check = parts[2]
+            mask = parts[3]
             iface_name = parts[4]
 
-        if ip_to_check and iface_name:
+        if ip_to_check and iface_name and mask:
             client_name = interface_to_description.get(iface_name)
             if client_name:
                 client = crud.get_client_by_name(db, client_name)
                 if client:
                     try:
-                        nat_ip_cidr = f"{ip_to_check}/32"
+                        prefixlen = ipaddress.ip_network(f"0.0.0.0/{mask}").prefixlen
+                        nat_ip_cidr = f"{ip_to_check}/{prefixlen}"
                         if not db.query(NatIp).filter_by(ip_address=nat_ip_cidr).first():
                             crud.create_nat_ip(db, ip_address=nat_ip_cidr, client_id=client.id, description="Imported from Cisco route")
+                    except ValueError:
+                        # Invalid mask or IP
+                        continue
                     except Exception:
                         db.rollback()
 

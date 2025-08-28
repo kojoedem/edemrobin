@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block title %}Add NAT IP - IPDB{% endblock %}
+
+{% block content %}
+<div class="mb-6 border-b border-slate-200 pb-4">
+  <h1 class="text-2xl font-bold text-slate-700">Add a New NAT IP</h1>
+  <p class="text-slate-500">Manually allocate a NAT IP and assign it to a client.</p>
+</div>
+
+{% if error %}
+<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+  <strong class="font-bold">Error:</strong>
+  <span class="block sm:inline">{{ error }}</span>
+</div>
+{% endif %}
+
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
+    <form method="post" action="/dashboard/add_nat_ip" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      <div class="md:col-span-1">
+        <label for="ip_address" class="text-sm font-medium text-slate-600 block mb-1">NAT IP Address (CIDR)</label>
+        <input type="text" name="ip_address" id="ip_address" placeholder="e.g., 192.168.1.64/29" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+      </div>
+
+      <div class="md:col-span-1">
+        <label for="client_id" class="text-sm font-medium text-slate-600 block mb-1">Client</label>
+        <select name="client_id" id="client_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+          <option value="" disabled selected>-- Select a Client --</option>
+          {% for client in clients %}
+            <option value="{{ client.id }}">{{ client.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="md:col-span-2">
+        <label for="description" class="text-sm font-medium text-slate-600 block mb-1">Description (optional)</label>
+        <input type="text" name="description" id="description" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+      </div>
+
+      <div class="md:col-span-2 flex justify-end">
+        <button type="submit" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Add NAT IP</button>
+      </div>
+    </form>
+</div>
+{% endblock %}
