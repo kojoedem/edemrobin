@@ -151,3 +151,60 @@ def add_nat_ip_action(
     )
 
     return RedirectResponse("/dashboard/nat_ips", status_code=303)
+
+
+@router.post("/allocate/manual")
+@level_required(2)
+def manual_allocate_action(
+    request: Request,
+    cidr: str = Form(...),
+    vlan_id: Optional[int] = Form(None),
+    description: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user(request, db)
+
+    # Validate CIDR
+    try:
+        new_net = ipaddress.ip_network(cidr)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid CIDR format.")
+
+    # Find parent block
+    if user.is_admin:
+        allowed_blocks = db.query(models.IPBlock).all()
+    else:
+        allowed_blocks = user.allowed_blocks
+
+    parent_block = None
+    for block in allowed_blocks:
+        if new_net.subnet_of(ipaddress.ip_network(block.cidr)):
+            parent_block = block
+            break
+
+    if not parent_block:
+        raise HTTPException(status_code=403, detail="This subnet does not belong to any of your allowed blocks.")
+
+    # Check for overlaps
+    existing_subnets = db.query(models.Subnet).filter(models.Subnet.block_id == parent_block.id).all()
+    for existing in existing_subnets:
+        if new_net.overlaps(ipaddress.ip_network(existing.cidr)):
+            raise HTTPException(status_code=400, detail=f"Subnet overlaps with existing subnet: {existing.cidr}")
+
+    # Get or create client
+    client = crud.get_or_create_client(db, name=description)
+
+    # Create the new subnet
+    new_subnet = models.Subnet(
+        cidr=str(new_net),
+        status=models.SubnetStatus.allocated,
+        vlan_id=vlan_id,
+        description=description,
+        created_by=user.username,
+        block_id=parent_block.id,
+        client_id=client.id
+    )
+    db.add(new_subnet)
+    db.commit()
+
+    return RedirectResponse("/dashboard/allocate_ip", status_code=303)

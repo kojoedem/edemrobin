@@ -63,6 +63,42 @@
     </form>
 </div>
 
+<div class="mb-6 border-t pt-6">
+  <h2 class="text-xl font-bold text-slate-700">Manual Allocation</h2>
+  <p class="text-slate-500">Manually specify a subnet to allocate.</p>
+</div>
+
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
+    <form method="post" action="/allocate/manual" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      <div class="lg:col-span-2">
+        <label for="manual_cidr" class="text-sm font-medium text-slate-600 block mb-1">Subnet to Allocate (CIDR)</label>
+        <input type="text" name="cidr" id="manual_cidr" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., 10.0.5.0/24" required>
+      </div>
+
+      <div>
+        <label for="manual_vlan_id" class="text-sm font-medium text-slate-600 block mb-1">VLAN (optional)</label>
+        <select name="vlan_id" id="manual_vlan_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
+          <option value="">-- No VLAN --</option>
+          {% for vlan in vlans %}
+            <option value="{{ vlan.id }}">{{ vlan.vlan_id }} - {{ vlan.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="lg:col-span-1"></div>
+
+      <div class="lg:col-span-3">
+        <label for="manual_description" class="text-sm font-medium text-slate-600 block mb-1">Description</label>
+        <input type="text" name="description" id="manual_description" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or Service" required>
+      </div>
+
+      <div class="lg:col-span-1 flex items-end">
+        <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 w-full text-sm hover:bg-slate-700 transition">Allocate Manually</button>
+      </div>
+    </form>
+</div>
+
 <h2 class="text-xl font-semibold text-slate-600 mb-4">Existing Active Allocations</h2>
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
   <table class="min-w-full">
