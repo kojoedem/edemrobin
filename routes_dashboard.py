@@ -93,3 +93,60 @@ def allocate_ip_action(
         raise e
 
     return RedirectResponse("/dashboard/allocate_ip", status_code=303)
+
+
+@router.get("/dashboard/add_nat_ip", response_class=HTMLResponse)
+@level_required(2)
+def add_nat_ip_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    clients = crud.list_clients(db)
+    return templates.TemplateResponse("add_nat_ip.html", {
+        "request": request,
+        "user": user,
+        "clients": clients,
+        "error": None
+    })
+
+
+@router.post("/dashboard/add_nat_ip")
+@level_required(2)
+def add_nat_ip_action(
+    request: Request,
+    ip_address: str = Form(...),
+    client_id: int = Form(...),
+    description: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user(request, db)
+
+    # Validate CIDR format
+    try:
+        ipaddress.ip_network(ip_address, strict=False)
+    except ValueError:
+        clients = crud.list_clients(db)
+        return templates.TemplateResponse("add_nat_ip.html", {
+            "request": request,
+            "user": user,
+            "clients": clients,
+            "error": "Invalid CIDR format for NAT IP."
+        }, status_code=400)
+
+    # Check for duplicate NAT IP
+    existing_nat = db.query(models.NatIp).filter(models.NatIp.ip_address == ip_address).first()
+    if existing_nat:
+        clients = crud.list_clients(db)
+        return templates.TemplateResponse("add_nat_ip.html", {
+            "request": request,
+            "user": user,
+            "clients": clients,
+            "error": f"NAT IP {ip_address} already exists."
+        }, status_code=400)
+
+    crud.create_nat_ip(
+        db,
+        ip_address=ip_address,
+        client_id=client_id,
+        description=description
+    )
+
+    return RedirectResponse("/dashboard/nat_ips", status_code=303)
