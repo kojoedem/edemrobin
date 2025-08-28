@@ -19,9 +19,17 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    level = Column(Integer, default=1)  # 1=view, 2=allocate, 3=admin
     created_at = Column(DateTime, default=datetime.utcnow)
-    is_admin = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False, nullable=False, server_default="false")
+
+    # Granular Permissions
+    can_view_clients = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_manage_clients = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_view_nat = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_manage_nat = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_upload_config = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_view_churn = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_manage_allocations = Column(Boolean, default=False, nullable=False, server_default="false")
 
     allowed_blocks = relationship(
         "IPBlock",

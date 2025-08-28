@@ -18,18 +18,41 @@
         <label for="password" class="text-sm font-medium text-slate-600 block mb-1">Password</label>
         <input type="password" name="password" id="password" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
       </div>
-      <div>
-        <label for="level" class="text-sm font-medium text-slate-600 block mb-1">Level</label>
-        <select name="level" id="level" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
-          <option value="1">1 - View Only</option>
-          <option value="2">2 - Allocate</option>
-          <option value="3">3 - Admin</option>
-        </select>
-      </div>
-      <div class="flex items-end pb-2">
-        <div class="flex items-center gap-2">
-            <input type="checkbox" id="is_admin" name="is_admin" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
-            <label for="is_admin" class="text-sm font-medium text-slate-600">Is Admin?</label>
+      <div class="col-span-1 md:col-span-2 lg:col-span-4 border-t border-slate-200 pt-4 mt-4">
+        <p class="text-sm font-medium text-slate-600 mb-2">Permissions</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="is_admin" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Is Admin?</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_manage_allocations" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can Manage Allocations</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_view_clients" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can View Clients</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_manage_clients" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can Manage Clients</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_view_nat" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can View NAT</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_manage_nat" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can Manage NAT</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_upload_config" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can Upload Config</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_view_churn" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can View Churn</label>
+            </div>
         </div>
       </div>
       <div class="md:col-span-2 lg:col-span-4 flex justify-end">
@@ -43,8 +66,8 @@
     <thead class="bg-slate-50">
       <tr>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">Username</th>
-        <th class="text-left p-4 text-sm font-semibold text-slate-600">Level</th>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">Admin</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Permissions</th>
         <th class="text-left p-4 text-sm font-semibold text-slate-600">Actions</th>
       </tr>
     </thead>
@@ -52,10 +75,24 @@
       {% for u in users %}
       <tr class="hover:bg-slate-50">
         <td class="p-4 text-sm font-semibold text-slate-700">{{ u.username }}</td>
-        <td class="p-4 text-sm text-slate-600">Level {{ u.level }}</td>
         <td class="p-4 text-sm text-slate-600">{% if u.is_admin %}✔️ Yes{% else %}❌ No{% endif %}</td>
+        <td class="p-4 text-sm text-slate-600">
+            <div class="flex flex-wrap gap-2">
+                {% if u.is_admin %}
+                    <span class="bg-sky-100 text-sky-700 text-xs font-medium px-2 py-1 rounded-full">All Permissions</span>
+                {% else %}
+                    {% if u.can_manage_allocations %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">Manage Allocations</span>{% endif %}
+                    {% if u.can_manage_clients %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">Manage Clients</span>{% endif %}
+                    {% if u.can_view_clients %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">View Clients</span>{% endif %}
+                    {% if u.can_manage_nat %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">Manage NAT</span>{% endif %}
+                    {% if u.can_view_nat %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">View NAT</span>{% endif %}
+                    {% if u.can_upload_config %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">Upload Config</span>{% endif %}
+                    {% if u.can_view_churn %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">View Churn</span>{% endif %}
+                {% endif %}
+            </div>
+        </td>
         <td class="p-4 text-sm space-x-4">
-          <a href="/admin/users/{{ u.id }}/edit" class="text-sky-600 hover:underline font-semibold">Edit Permissions</a>
+          <a href="/admin/users/{{ u.id }}/edit" class="text-sky-600 hover:underline font-semibold">Edit</a>
           <a href="/admin/users/{{ u.id }}/change-password" class="text-slate-500 hover:underline">Change Password</a>
         </td>
       </tr>

@@ -31,7 +31,7 @@ class TestIPAllocator(unittest.TestCase):
         a smaller, imported subnet.
         """
         # 1. Create a user
-        user = User(username="testuser", password_hash="testpass", level=3, is_admin=True)
+        user = User(username="testuser", password_hash="testpass", is_admin=True)
         self.db.add(user)
         self.db.commit()
 
@@ -76,7 +76,7 @@ class TestIPAllocator(unittest.TestCase):
         """
         from models import InterfaceAddress
 
-        user = User(username="testuser", password_hash="testpass", level=3, is_admin=True)
+        user = User(username="testuser", password_hash="testpass", is_admin=True)
         self.db.add(user)
         self.db.commit()
 
