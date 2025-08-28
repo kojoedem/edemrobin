@@ -15,10 +15,6 @@ from database import engine, Base, SessionLocal
 from ip_allocator import allocate_subnet
 from security import hash_password, verify_password, get_current_user, login_required, admin_required, level_required
 
-from routes_import import router as import_router
-from routes_allocate import router as allocate_router
-
-from routes_vlan import router as vlan_router
 from utils import parse_config
 
 
@@ -29,10 +25,6 @@ app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-app.include_router(import_router)
-app.include_router(allocate_router)
-app.include_router(vlan_router)
 
 
 def get_db():
@@ -746,7 +738,7 @@ def reactivate_allocation_action(
     subnet_id: int,
     db: Session = Depends(get_db),
 ):
-    subnet = db.query(models.Subnet).filter(models.Subnet.id == subnet_id).first()
+    subnet = db.query(.Subnet).filter(models.Subnet.id == subnet_id).first()
     if not subnet:
         raise HTTPException(status_code=404, detail="Subnet not found")
 
@@ -876,7 +868,7 @@ def upload_config_page(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/dashboard/upload_config")
 @admin_required
-async def upload_config_action(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_config_action(request: Request, file: UploadFile = File(...), db: Session = Depends(get_b)):
     user = get_current_user(request, db)
     content = await file.read()
     config_text = content.decode("utf-8")
