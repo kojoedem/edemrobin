@@ -26,24 +26,43 @@
       <div class="mb-6 text-sm px-2">
         <p>Logged in as</p>
         <p class="font-semibold text-lg text-white">{{ user.username }}</p>
-        <p class="text-slate-400">(Level {{ user.level }}{% if user.is_admin %}, Admin{% endif %})</p>
+        {% if user.is_admin %}
+        <p class="text-sky-400 font-bold">Administrator</p>
+        {% endif %}
       </div>
       <nav class="flex-grow">
         <ul class="space-y-2 text-slate-200">
-          <li><a href="/" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏠 Dashboard</a></li>
-          {% if user.level >= 2 %}
-          <li><a href="/dashboard/add_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Add VLAN</a></li>
-          <li><a href="/dashboard/allocate_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Allocate IP</a></li>
-          {% endif %}
-          {% if user.is_admin %}
-          <li><a href="/admin/blocks" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📦 Manage Blocks</a></li>
-          <li><a href="/admin/clients" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏢 Manage Clients</a></li>
-          <li><a href="/admin/users" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">👤 Manage Users</a></li>
-          <li><a href="/dashboard/churned" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📉 Churned Allocations</a></li>
-          <li><a href="/dashboard/nat_ips" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔥 NAT IPs</a></li>
-        <li><a href="/dashboard/upload_config" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">☁️ Upload Config</a></li>
-        <li><a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">⚙️ Settings</a></li>
-          {% endif %}
+            <li><a href="/" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏠 Dashboard</a></li>
+
+            {% if user.can_manage_allocations or user.is_admin %}
+            <li><a href="/dashboard/allocate_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Allocate IP</a></li>
+            {% endif %}
+
+            {% if user.can_manage_vlans or user.is_admin %}
+            <li><a href="/dashboard/add_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Add VLAN</a></li>
+            {% endif %}
+
+            {% if user.can_manage_clients or user.is_admin %}
+            <li><a href="/admin/clients" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏢 Manage Clients</a></li>
+            {% endif %}
+
+            {% if user.can_manage_nat or user.is_admin %}
+            <li><a href="/dashboard/nat_ips" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔥 NAT IPs</a></li>
+            {% endif %}
+
+            {% if user.can_upload_config or user.is_admin %}
+            <li><a href="/dashboard/upload_config" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">☁️ Upload Config</a></li>
+            {% endif %}
+
+            {% if user.is_admin %}
+            <li class="pt-4 mt-4 border-t border-slate-700">
+                <p class="px-3 text-xs font-semibold uppercase text-slate-400">Admin</p>
+            </li>
+            <li><a href="/admin/blocks" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📦 Manage Blocks</a></li>
+            <li><a href="/admin/users" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">👤 Manage Users</a></li>
+            <li><a href="/dashboard/churned" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📉 Churned Allocations</a></li>
+            <li><a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">⚙️ Settings</a></li>
+            {% endif %}
         </ul>
       </nav>
       <div class="mt-auto">
