@@ -7,75 +7,97 @@
   <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 min-h-screen flex">
-  <!-- Sidebar -->
-  <aside class="w-64 bg-slate-800 text-slate-300 flex-shrink-0 h-screen p-4 flex flex-col sticky top-0">
-    <div class="mb-8 px-2">
-      <a href="/" class="text-2xl font-bold tracking-wider text-white hover:text-gray-200">EDEM<span class="text-sky-400">ROBIN</span></a>
-    </div>
-
-    {% if request.state.settings.get('logo_path') %}
-    <div class="mb-4 text-center">
-        <img src="/{{ request.state.settings.logo_path }}" alt="Company Logo" class="h-16 mx-auto">
-    </div>
-    {% endif %}
-    {% if request.state.settings.get('company_name') %}
-    <p class="text-center text-slate-400 text-sm mb-4">{{ request.state.settings.company_name }}</p>
-    {% endif %}
-    {% if user %}
-      <div class="mb-6 text-sm px-2">
-        <p>Logged in as</p>
-        <p class="font-semibold text-lg text-white">{{ user.username }}</p>
-        {% if user.is_admin %}
-        <p class="text-sky-400 font-bold">Administrator</p>
-        {% endif %}
+<body class="bg-slate-50 min-h-screen">
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-slate-800 text-slate-300 h-screen p-4 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out z-30">
+      <div class="mb-8 px-2">
+        <a href="/" class="text-2xl font-bold tracking-wider text-white hover:text-gray-200">EDEM<span class="text-sky-400">ROBIN</span></a>
       </div>
-      <nav class="flex-grow">
-        <ul class="space-y-2 text-slate-200">
-            <li><a href="/" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏠 Dashboard</a></li>
 
-            {% if user.can_manage_allocations or user.is_admin %}
-            <li><a href="/dashboard/allocate_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Allocate IP</a></li>
-            {% endif %}
-
-            {% if user.can_manage_vlans or user.is_admin %}
-            <li><a href="/dashboard/add_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Add VLAN</a></li>
-            {% endif %}
-
-            {% if user.can_manage_clients or user.is_admin %}
-            <li><a href="/admin/clients" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏢 Manage Clients</a></li>
-            {% endif %}
-
-            {% if user.can_manage_nat or user.is_admin %}
-            <li><a href="/dashboard/nat_ips" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔥 NAT IPs</a></li>
-            {% endif %}
-
-            {% if user.can_upload_config or user.is_admin %}
-            <li><a href="/dashboard/upload_config" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">☁️ Upload Config</a></li>
-            {% endif %}
-
-            {% if user.is_admin %}
-            <li class="pt-4 mt-4 border-t border-slate-700">
-                <p class="px-3 text-xs font-semibold uppercase text-slate-400">Admin</p>
-            </li>
-            <li><a href="/admin/blocks" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📦 Manage Blocks</a></li>
-            <li><a href="/admin/users" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">👤 Manage Users</a></li>
-            <li><a href="/dashboard/churned" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📉 Churned Allocations</a></li>
-            <li><a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">⚙️ Settings</a></li>
-            {% endif %}
-        </ul>
-      </nav>
-      <div class="mt-auto">
-        <a href="/logout" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔓 Logout</a>
+      {% if request.state.settings.get('logo_path') %}
+      <div class="mb-4 text-center">
+          <img src="/{{ request.state.settings.logo_path }}" alt="Company Logo" class="h-16 mx-auto">
       </div>
-    {% else %}
-      <a href="/login" class="underline hover:no-underline">Login</a>
-    {% endif %}
-  </aside>
+      {% endif %}
+      {% if request.state.settings.get('company_name') %}
+      <p class="text-center text-slate-400 text-sm mb-4">{{ request.state.settings.company_name }}</p>
+      {% endif %}
 
-  <!-- Main content -->
-  <main class="flex-1 p-6 overflow-y-auto">
-    {% block content %}{% endblock %}
-  </main>
+      {% if user %}
+        <div class="mb-6 text-sm px-2">
+          <p>Logged in as</p>
+          <p class="font-semibold text-lg text-white">{{ user.username }}</p>
+          {% if user.is_admin %}
+          <p class="text-sky-400 font-bold">Administrator</p>
+          {% endif %}
+        </div>
+        <nav class="flex-grow">
+          <ul class="space-y-2 text-slate-200">
+              <li><a href="/" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏠 Dashboard</a></li>
+
+              {% if user.can_manage_allocations or user.is_admin %}
+              <li><a href="/dashboard/allocate_ip" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Allocate IP</a></li>
+              {% endif %}
+
+              {% if user.can_manage_vlans or user.is_admin %}
+              <li><a href="/dashboard/add_vlan" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">➕ Add VLAN</a></li>
+              {% endif %}
+
+              {% if user.can_manage_clients or user.is_admin %}
+              <li><a href="/admin/clients" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏢 Manage Clients</a></li>
+              {% endif %}
+
+              {% if user.can_manage_nat or user.is_admin %}
+              <li><a href="/dashboard/nat_ips" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔥 NAT IPs</a></li>
+              {% endif %}
+
+              {% if user.can_upload_config or user.is_admin %}
+              <li><a href="/dashboard/upload_config" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">☁️ Upload Config</a></li>
+              {% endif %}
+
+              {% if user.is_admin %}
+              <li class="pt-4 mt-4 border-t border-slate-700">
+                  <p class="px-3 text-xs font-semibold uppercase text-slate-400">Admin</p>
+              </li>
+              <li><a href="/admin/blocks" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📦 Manage Blocks</a></li>
+              <li><a href="/admin/users" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">👤 Manage Users</a></li>
+              <li><a href="/dashboard/churned" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">📉 Churned Allocations</a></li>
+              <li><a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">⚙️ Settings</a></li>
+              {% endif %}
+          </ul>
+        </nav>
+        <div class="mt-auto">
+          <a href="/logout" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔓 Logout</a>
+        </div>
+      {% else %}
+        <a href="/login" class="underline hover:no-underline">Login</a>
+      {% endif %}
+    </aside>
+
+    <div class="flex-1 flex flex-col">
+      <!-- Mobile Header -->
+      <header class="md:hidden bg-white shadow-sm p-4 flex justify-between items-center">
+        <a href="/" class="text-xl font-bold tracking-wider">EDEM<span class="text-sky-500">ROBIN</span></a>
+        <button id="menu-button" class="p-2 rounded-md text-slate-500 hover:bg-slate-100">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+        </button>
+      </header>
+
+      <!-- Main content -->
+      <main class="flex-1 p-6 overflow-y-auto">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const menuButton = document.getElementById('menu-button');
+
+    menuButton.addEventListener('click', () => {
+      sidebar.classList.toggle('-translate-x-full');
+    });
+  </script>
 </body>
 </html>
