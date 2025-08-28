@@ -178,6 +178,8 @@ def manual_allocate_action(
 
     parent_block = None
     for block in allowed_blocks:
+        if block.cidr == 'Unassigned':
+            continue
         if new_net.subnet_of(ipaddress.ip_network(block.cidr)):
             parent_block = block
             break

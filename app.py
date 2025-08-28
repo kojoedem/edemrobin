@@ -77,7 +77,7 @@ def home(request: Request, db: Session = Depends(get_db)):
         blocks_for_stats = db.query(models.IPBlock).filter(models.IPBlock.cidr != "Unassigned").order_by(models.IPBlock.cidr).all()
     else:
         blocks_for_stats = [b for b in user.allowed_blocks if b.cidr != "Unassigned"]
-        blocks_for_stats.sort(key=lambda x: ipaddress.ip_network(x.cidr))
+        blocks_for_stats.sort(key=lambda x: ipaddress.ip_network(x.cidr, strict=False))
 
     block_stats = []
     for block in blocks_for_stats:
@@ -313,6 +313,12 @@ def create_block(
     if existing_block:
         # Redirect back to the page with an error message
         return RedirectResponse(url=f"/admin/blocks?error=IP Block {cidr} already exists.", status_code=303)
+
+    # Validate CIDR format and ensure it's a network address
+    try:
+        network = ipaddress.ip_network(cidr, strict=True)
+    except ValueError as e:
+        return RedirectResponse(url=f"/admin/blocks?error={e}", status_code=303)
 
     # Check if block with this CIDR already exists
     existing_block = db.query(models.IPBlock).filter(models.IPBlock.cidr == cidr).first()
