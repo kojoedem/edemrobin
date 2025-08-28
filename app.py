@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 import crud, models, schemas
 from database import engine, Base, SessionLocal
 from ip_allocator import allocate_subnet
-from security import hash_password, verify_password, get_current_user, login_required, admin_required, level_required
+from security import hash_password, verify_password, get_current_user, login_required, admin_required, permission_required
 
 from routes_import import router as import_router
 from routes_allocate import router as allocate_router
@@ -183,10 +183,36 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/admin/users/create")
 @admin_required
-def admin_create_user(request: Request, username: str = Form(...), password: str = Form(...), level: int = Form(...), is_admin: bool = Form(False), db: Session = Depends(get_db)):
+def admin_create_user(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    is_admin: bool = Form(False),
+    can_view_clients: bool = Form(False),
+    can_manage_clients: bool = Form(False),
+    can_view_nat: bool = Form(False),
+    can_manage_nat: bool = Form(False),
+    can_upload_config: bool = Form(False),
+    can_view_churn: bool = Form(False),
+    can_manage_allocations: bool = Form(False),
+    db: Session = Depends(get_db)
+):
     if crud.get_user_by_username(db, username):
         raise HTTPException(status_code=400, detail="Username already exists")
-    crud.create_user(db, username, password, level, is_admin)
+
+    user_data = schemas.UserCreate(
+        username=username,
+        password=password,
+        is_admin=is_admin,
+        can_view_clients=can_view_clients,
+        can_manage_clients=can_manage_clients,
+        can_view_nat=can_view_nat,
+        can_manage_nat=can_manage_nat,
+        can_upload_config=can_upload_config,
+        can_view_churn=can_view_churn,
+        can_manage_allocations=can_manage_allocations,
+    )
+    crud.create_user(db=db, user=user_data)
     return RedirectResponse("/admin/users", status_code=303)
 
 
@@ -259,8 +285,14 @@ def edit_user_page(request: Request, user_id: int, db: Session = Depends(get_db)
 def edit_user_action(
     request: Request,
     user_id: int,
-    level: int = Form(...),
     is_admin: bool = Form(False),
+    can_view_clients: bool = Form(False),
+    can_manage_clients: bool = Form(False),
+    can_view_nat: bool = Form(False),
+    can_manage_nat: bool = Form(False),
+    can_upload_config: bool = Form(False),
+    can_view_churn: bool = Form(False),
+    can_manage_allocations: bool = Form(False),
     allowed_blocks: List[int] = Form([]),
     db: Session = Depends(get_db),
 ):
@@ -268,8 +300,14 @@ def edit_user_action(
     if not user_to_edit:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user_to_edit.level = level
     user_to_edit.is_admin = is_admin
+    user_to_edit.can_view_clients = can_view_clients
+    user_to_edit.can_manage_clients = can_manage_clients
+    user_to_edit.can_view_nat = can_view_nat
+    user_to_edit.can_manage_nat = can_manage_nat
+    user_to_edit.can_upload_config = can_upload_config
+    user_to_edit.can_view_churn = can_view_churn
+    user_to_edit.can_manage_allocations = can_manage_allocations
 
     # Update allowed blocks
     user_to_edit.allowed_blocks.clear()
@@ -397,7 +435,7 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
 
 # --- Client Management ---
 @app.get("/admin/clients", response_class=HTMLResponse)
-@level_required(1)
+@permission_required("can_view_clients")
 def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
     clients_query = db.query(models.Client)
@@ -407,13 +445,13 @@ def admin_clients_page(request: Request, db: Session = Depends(get_db), query: O
     return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query})
 
 @app.post("/admin/clients/create")
-@level_required(2)
+@permission_required("can_manage_clients")
 def create_client_action(request: Request, name: str = Form(...), db: Session = Depends(get_db)):
     crud.get_or_create_client(db, name=name, is_active=True)
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.post("/admin/clients/bulk_action")
-@level_required(2)
+@permission_required("can_manage_clients")
 def client_bulk_action(request: Request, action: str = Form(...), client_ids: List[int] = Form([]), db: Session = Depends(get_db)):
     if not client_ids:
         return RedirectResponse(url="/admin/clients", status_code=303) # Or show a message
@@ -434,7 +472,7 @@ def client_bulk_action(request: Request, action: str = Form(...), client_ids: Li
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.post("/admin/clients/{client_id}/toggle_status")
-@level_required(2)
+@permission_required("can_manage_clients")
 def toggle_client_status(request: Request, client_id: int, db: Session = Depends(get_db)):
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
@@ -444,7 +482,7 @@ def toggle_client_status(request: Request, client_id: int, db: Session = Depends
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.post("/admin/clients/{client_id}/delete")
-@level_required(2)
+@permission_required("can_manage_clients")
 def delete_client_action(request: Request, client_id: int, db: Session = Depends(get_db)):
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
@@ -456,7 +494,7 @@ def delete_client_action(request: Request, client_id: int, db: Session = Depends
     return RedirectResponse(url="/admin/clients", status_code=303)
 
 @app.get("/clients/{client_id}", response_class=HTMLResponse)
-@login_required
+@permission_required("can_view_clients")
 def client_detail_page(request: Request, client_id: int, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
@@ -474,7 +512,7 @@ def client_detail_page(request: Request, client_id: int, db: Session = Depends(g
 
 # --- NAT IPs ---
 @app.get("/dashboard/nat_ips", response_class=HTMLResponse)
-@login_required
+@permission_required("can_view_nat")
 def nat_ips_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     nat_ips = db.query(models.NatIp).join(models.Client).order_by(models.Client.name).all()
@@ -816,7 +854,7 @@ def reactivate_allocation_action(
 
 
 @app.post("/dashboard/allocations/{subnet_id}/activate")
-@level_required(2)
+@permission_required("can_manage_allocations")
 def activate_allocation_action(
     request: Request,
     subnet_id: int,

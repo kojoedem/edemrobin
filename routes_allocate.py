@@ -3,15 +3,14 @@ import ipaddress
 from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from sqlalchemy.orm import Session
 from database import get_db
-from security import get_current_user, level_required
+from security import get_current_user, permission_required
 from models import SubnetStatus, IPBlock, Subnet
 import crud
 
 router = APIRouter(prefix="/allocate", tags=["Allocate"])
 
 
-@router.post("/subnet")
-@level_required(2)
+@router.post("/subnet", dependencies=[Depends(permission_required("can_manage_allocations"))])
 def allocate_subnet(
     request: Request,
     block_id: int = Form(...),

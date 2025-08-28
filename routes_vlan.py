@@ -2,13 +2,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from sqlalchemy.orm import Session
 from database import get_db
-from security import get_current_user, level_required
+from security import get_current_user, permission_required
 import crud
 
 router = APIRouter(prefix="/vlan", tags=["VLAN"])
 
-@router.post("/add")
-@level_required(2)
+@router.post("/add", dependencies=[Depends(permission_required("can_manage_vlans"))])
 def add_vlan(
     request: Request,
     vlan_id: int = Form(...),

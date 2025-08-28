@@ -24,6 +24,32 @@ class IPBlock(IPBlockBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class UserBase(BaseModel):
+    username: str
+
+class UserCreate(UserBase):
+    password: str
+    is_admin: bool = False
+    can_view_clients: bool = False
+    can_manage_clients: bool = False
+    can_view_nat: bool = False
+    can_manage_nat: bool = False
+    can_upload_config: bool = False
+    can_view_churn: bool = False
+    can_manage_allocations: bool = False
+
+class User(UserBase):
+    id: int
+    is_admin: bool
+    can_view_clients: bool
+    can_manage_clients: bool
+    can_view_nat: bool
+    can_manage_nat: bool
+    can_upload_config: bool
+    can_view_churn: bool
+    can_manage_allocations: bool
+    model_config = ConfigDict(from_attributes=True)
+
 class Subnet(BaseModel):
     id: int
     cidr: str

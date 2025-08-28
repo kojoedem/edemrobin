@@ -50,15 +50,24 @@ def login_required(endpoint):
             return endpoint(*args, **kwargs)
     return wrapper
 
-def level_required(min_level: int):
+def permission_required(permission_name: str):
     def decorator(endpoint):
         @wraps(endpoint)
         async def wrapper(*args, **kwargs):
             request: Request = kwargs["request"]
             db: Session = kwargs["db"]
             user = get_current_user(request, db)
-            if user.level < min_level:
-                raise HTTPException(status_code=403, detail="Insufficient permission level")
+
+            # Admins have all permissions
+            if user.is_admin:
+                if inspect.iscoroutinefunction(endpoint):
+                    return await endpoint(*args, **kwargs)
+                else:
+                    return endpoint(*args, **kwargs)
+
+            if not getattr(user, permission_name, False):
+                raise HTTPException(status_code=403, detail="You do not have permission to perform this action.")
+
             if inspect.iscoroutinefunction(endpoint):
                 return await endpoint(*args, **kwargs)
             else:

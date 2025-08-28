@@ -9,17 +9,41 @@
   <form method="post" action="/admin/users/{{ user_to_edit.id }}/edit" class="space-y-6">
 
     <div>
-      <label for="level" class="text-sm font-medium block mb-1">Access Level</label>
-      <select name="level" id="level" class="w-full border rounded px-3 py-2">
-        <option value="1" {% if user_to_edit.level == 1 %}selected{% endif %}>1 - Read Only</option>
-        <option value="2" {% if user_to_edit.level == 2 %}selected{% endif %}>2 - Editor / Allocator</option>
-        <option value="3" {% if user_to_edit.level == 3 %}selected{% endif %}>3 - Admin</option>
-      </select>
-    </div>
-
-    <div class="flex items-center gap-2">
-      <input type="checkbox" id="is_admin" name="is_admin" value="true" {% if user_to_edit.is_admin %}checked{% endif %} class="h-4 w-4">
-      <label for="is_admin" class="text-sm font-medium">Is Admin?</label>
+      <h3 class="text-md font-semibold mb-2">Permissions</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="is_admin" name="is_admin" value="true" {% if user_to_edit.is_admin %}checked{% endif %} class="h-4 w-4">
+          <label for="is_admin" class="text-sm font-medium">Is Admin (Grants all permissions)</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_manage_allocations" name="can_manage_allocations" value="true" {% if user_to_edit.can_manage_allocations %}checked{% endif %} class="h-4 w-4">
+          <label for="can_manage_allocations" class="text-sm font-medium">Can Manage Allocations</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_upload_config" name="can_upload_config" value="true" {% if user_to_edit.can_upload_config %}checked{% endif %} class="h-4 w-4">
+          <label for="can_upload_config" class="text-sm font-medium">Can Upload Config</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_manage_clients" name="can_manage_clients" value="true" {% if user_to_edit.can_manage_clients %}checked{% endif %} class="h-4 w-4">
+          <label for="can_manage_clients" class="text-sm font-medium">Can Manage Clients</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_manage_nat" name="can_manage_nat" value="true" {% if user_to_edit.can_manage_nat %}checked{% endif %} class="h-4 w-4">
+          <label for="can_manage_nat" class="text-sm font-medium">Can Manage NAT IPs</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_view_churn" name="can_view_churn" value="true" {% if user_to_edit.can_view_churn %}checked{% endif %} class="h-4 w-4">
+          <label for="can_view_churn" class="text-sm font-medium">Can View Churn</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_view_clients" name="can_view_clients" value="true" {% if user_to_edit.can_view_clients %}checked{% endif %} class="h-4 w-4">
+          <label for="can_view_clients" class="text-sm font-medium">Can View Clients</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_view_nat" name="can_view_nat" value="true" {% if user_to_edit.can_view_nat %}checked{% endif %} class="h-4 w-4">
+          <label for="can_view_nat" class="text-sm font-medium">Can View NAT IPs</label>
+        </div>
+      </div>
     </div>
 
     <div>

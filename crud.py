@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from models import (
     User, VLAN, IPBlock, Subnet, SubnetStatus, Device, Interface, InterfaceAddress, Client, NatIp
 )
+from schemas import UserCreate
 from security import hash_password
 
 # ---------- Users ----------
@@ -13,13 +14,24 @@ def get_user_by_username(db: Session, username: str):
 def get_users(db: Session):
     return db.query(User).all()
 
-def create_user(db: Session, username: str, password: str, level: int = 1, is_admin: bool = False):
-    hashed_password = hash_password(password)
-    user = User(username=username, password_hash=hashed_password, level=level, is_admin=is_admin)
-    db.add(user)
+def create_user(db: Session, user: UserCreate):
+    hashed_password = hash_password(user.password)
+    db_user = User(
+        username=user.username,
+        password_hash=hashed_password,
+        is_admin=user.is_admin,
+        can_view_clients=user.can_view_clients,
+        can_manage_clients=user.can_manage_clients,
+        can_view_nat=user.can_view_nat,
+        can_manage_nat=user.can_manage_nat,
+        can_upload_config=user.can_upload_config,
+        can_view_churn=user.can_view_churn,
+        can_manage_allocations=user.can_manage_allocations,
+    )
+    db.add(db_user)
     db.commit()
-    db.refresh(user)
-    return user
+    db.refresh(db_user)
+    return db_user
 
 
 # ---------- Clients ----------

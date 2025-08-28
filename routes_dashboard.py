@@ -7,7 +7,7 @@ import ipaddress
 
 import crud, models
 from database import get_db
-from security import get_current_user, login_required, level_required
+from security import get_current_user, login_required, permission_required
 from ip_allocator import allocate_subnet
 
 router = APIRouter()
@@ -15,14 +15,14 @@ templates = Jinja2Templates(directory="templates")
 
 
 @router.get("/dashboard/upload_config", response_class=HTMLResponse)
-@level_required(2)
+@permission_required("can_upload_config")
 def upload_config_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     return templates.TemplateResponse("upload_config.html", {"request": request, "user": user})
 
 
 @router.get("/dashboard/allocate_ip", response_class=HTMLResponse)
-@login_required
+@permission_required("can_manage_allocations")
 def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
@@ -51,7 +51,7 @@ def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/allocate")
-@level_required(2)
+@permission_required("can_manage_allocations")
 def allocate_ip_action(
     request: Request,
     block_id: int = Form(...),
@@ -97,7 +97,7 @@ def allocate_ip_action(
 
 
 @router.get("/dashboard/add_nat_ip", response_class=HTMLResponse)
-@level_required(2)
+@permission_required("can_manage_nat")
 def add_nat_ip_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     clients = crud.list_clients(db)
@@ -110,7 +110,7 @@ def add_nat_ip_page(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/dashboard/add_nat_ip")
-@level_required(2)
+@permission_required("can_manage_nat")
 def add_nat_ip_action(
     request: Request,
     ip_address: str = Form(...),
@@ -154,7 +154,7 @@ def add_nat_ip_action(
 
 
 @router.post("/allocate/manual")
-@level_required(2)
+@permission_required("can_manage_allocations")
 def manual_allocate_action(
     request: Request,
     cidr: str = Form(...),
