@@ -23,12 +23,33 @@ def allocate_subnet(
     # The parent network from which we are allocating
     parent_network = ipaddress.ip_network(block.cidr)
 
-    # Get all subnets that are already allocated or imported for this block
-    existing_subnets_q = db.query(Subnet).filter(Subnet.block_id == block_id).all()
-    existing_networks = [ipaddress.ip_network(s.cidr) for s in existing_subnets_q]
+    # 1. Get all "hard-allocated" subnets (allocated or reserved)
+    hard_allocated_subnets = db.query(Subnet).filter(
+        Subnet.block_id == block_id,
+        Subnet.status.in_([SubnetStatus.allocated, SubnetStatus.reserved])
+    ).all()
 
-    # Collapse the existing networks to handle overlaps and adjacencies
-    collapsed_existing = list(ipaddress.collapse_addresses(existing_networks))
+    # 2. Get all individual interface IPs from "imported" subnets
+    imported_subnets = db.query(Subnet).filter(
+        Subnet.block_id == block_id,
+        Subnet.status == SubnetStatus.imported
+    ).all()
+
+    unavailable_networks = [ipaddress.ip_network(s.cidr) for s in hard_allocated_subnets]
+
+    from models import InterfaceAddress
+    for sub in imported_subnets:
+        # Get all interface IPs for this specific subnet
+        interface_ips = db.query(InterfaceAddress).filter(InterfaceAddress.subnet_id == sub.id).all()
+        for ip in interface_ips:
+            # Treat each used IP as a /32 network for exclusion
+            unavailable_networks.append(ipaddress.ip_network(f"{ip.ip}/32"))
+
+    # 3. Collapse all unavailable networks to get a minimal set
+    if not unavailable_networks:
+        collapsed_existing = []
+    else:
+        collapsed_existing = list(ipaddress.collapse_addresses(unavailable_networks))
 
     # Calculate the available ranges by excluding the existing networks from the parent
     available_ranges = [parent_network]
