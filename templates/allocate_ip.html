@@ -69,14 +69,20 @@
 </div>
 
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
+    {% if error %}
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+        <strong class="font-bold">Error:</strong>
+        <span class="block sm:inline">{{ error }}</span>
+    </div>
+    {% endif %}
     <form method="post" action="/allocate/manual" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
       <div>
         <label for="manual_block_id" class="text-sm font-medium text-slate-600 block mb-1">Parent Block</label>
         <select name="block_id" id="manual_block_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
-          <option value="" disabled selected>-- Select a Block --</option>
+          <option value="" disabled {% if not manual_form %}selected{% endif %}>-- Select a Block --</option>
           {% for block in blocks %}
-            <option value="{{ block.id }}">{{ block.cidr }} ({{ block.description or 'No description' }})</option>
+            <option value="{{ block.id }}" {% if manual_form and manual_form.block_id == block.id %}selected{% endif %}>{{ block.cidr }} ({{ block.description or 'No description' }})</option>
           {% endfor %}
         </select>
       </div>
@@ -93,7 +99,7 @@
         <label for="manual_mask" class="text-sm font-medium text-slate-600 block mb-1">Mask</label>
         <select name="mask" id="manual_mask" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
             {% for i in range(16, 33) %}
-              <option value="{{ i }}">/{{ i }}</option>
+              <option value="{{ i }}" {% if manual_form and manual_form.mask == i %}selected{% endif %}>/{{ i }}</option>
             {% endfor %}
         </select>
       </div>
@@ -103,14 +109,14 @@
         <select name="vlan_id" id="manual_vlan_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500">
           <option value="">-- No VLAN --</option>
           {% for vlan in vlans %}
-            <option value="{{ vlan.id }}">{{ vlan.vlan_id }} - {{ vlan.name }}</option>
+            <option value="{{ vlan.id }}" {% if manual_form and manual_form.vlan_id == vlan.id %}selected{% endif %}>{{ vlan.vlan_id }} - {{ vlan.name }}</option>
           {% endfor %}
         </select>
       </div>
 
       <div class="lg:col-span-3">
         <label for="manual_description" class="text-sm font-medium text-slate-600 block mb-1">Description</label>
-        <input type="text" name="description" id="manual_description" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or Service" required>
+        <input type="text" name="description" id="manual_description" value="{{ manual_form.description or '' }}" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or Service" required>
       </div>
 
       <div class="lg:col-span-1 flex items-end">

@@ -218,46 +218,58 @@ def manual_allocate_action(
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
-
     final_vlan_id = int(vlan_id) if vlan_id and vlan_id.isdigit() else None
-
     cidr = f"{starting_ip}/{mask}"
 
-    # Validate CIDR
+    # This function will be re-used in the error case
+    def render_form_with_error(error_message: str):
+        if user.is_admin:
+            blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+        else:
+            blocks = user.allowed_blocks
+
+        vlans = db.query(models.VLAN).order_by(models.VLAN.vlan_id).all()
+        allocations = db.query(models.Subnet).filter(
+            models.Subnet.status == models.SubnetStatus.allocated
+        ).order_by(models.Subnet.created_at.desc()).all()
+
+        return templates.TemplateResponse("allocate_ip.html", {
+            "request": request, "user": user, "blocks": blocks,
+            "vlans": vlans, "allocations": allocations, "error": error_message,
+            "manual_form": {
+                "block_id": block_id,
+                "starting_ip": starting_ip,
+                "mask": mask,
+                "vlan_id": final_vlan_id,
+                "description": description
+            }
+        }, status_code=400)
+
     try:
-        new_net = ipaddress.ip_network(cidr)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid CIDR format.")
+        new_net = ipaddress.ip_network(cidr, strict=False)
+        parent_block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
 
-    # Find parent block
-    parent_block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
-    if not parent_block:
-        raise HTTPException(status_code=404, detail="Parent block not found.")
+        if not parent_block:
+            return render_form_with_error("Parent block not found.")
 
-    # Check if user is allowed to use this block
-    if not user.is_admin and parent_block not in user.allowed_blocks:
-        raise HTTPException(status_code=403, detail="You are not allowed to allocate from this block.")
+        if not user.is_admin and parent_block not in user.allowed_blocks:
+            return render_form_with_error("You are not allowed to allocate from this block.")
 
-    # Check for overlaps
-    existing_subnets = db.query(models.Subnet).filter(models.Subnet.block_id == parent_block.id).all()
-    for existing in existing_subnets:
-        if new_net.overlaps(ipaddress.ip_network(existing.cidr)):
-            raise HTTPException(status_code=400, detail=f"Subnet overlaps with existing subnet: {existing.cidr}")
+        existing_subnets = db.query(models.Subnet).filter(models.Subnet.block_id == parent_block.id).all()
+        for existing in existing_subnets:
+            if new_net.overlaps(ipaddress.ip_network(existing.cidr)):
+                return render_form_with_error(f"Subnet overlaps with existing subnet: {existing.cidr}")
 
-    # Get or create client
-    client = crud.get_or_create_client(db, name=description)
+        client = crud.get_or_create_client(db, name=description)
+        new_subnet = models.Subnet(
+            cidr=str(new_net), status=models.SubnetStatus.allocated,
+            vlan_id=final_vlan_id, description=description,
+            created_by=user.username, block_id=parent_block.id, client_id=client.id
+        )
+        db.add(new_subnet)
+        db.commit()
 
-    # Create the new subnet
-    new_subnet = models.Subnet(
-        cidr=str(new_net),
-        status=models.SubnetStatus.allocated,
-        vlan_id=final_vlan_id,
-        description=description,
-        created_by=user.username,
-        block_id=parent_block.id,
-        client_id=client.id
-    )
-    db.add(new_subnet)
-    db.commit()
+        return RedirectResponse("/dashboard/allocate_ip", status_code=303)
 
-    return RedirectResponse("/dashboard/allocate_ip", status_code=303)
+    except ValueError as e:
+        return render_form_with_error(f"Invalid CIDR or IP data: {e}")
