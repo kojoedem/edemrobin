@@ -65,7 +65,7 @@
 
 <div class="mb-6 border-t pt-6">
   <h2 class="text-xl font-bold text-slate-700">Manual Allocation</h2>
-  <p class="text-slate-500">Manually specify a subnet to allocate.</p>
+  <p class="text-slate-500">Manually specify a subnet or assign a single IP to a device.</p>
 </div>
 
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
@@ -98,7 +98,8 @@
       <div>
         <label for="manual_mask" class="text-sm font-medium text-slate-600 block mb-1">Mask</label>
         <select name="mask" id="manual_mask" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
-            {% for i in range(16, 33) %}
+            <option value="32" {% if manual_form and manual_form.mask == 32 %}selected{% endif %}>/32 (Single Device IP)</option>
+            {% for i in range(16, 32) %}
               <option value="{{ i }}" {% if manual_form and manual_form.mask == i %}selected{% endif %}>/{{ i }}</option>
             {% endfor %}
         </select>
@@ -115,8 +116,8 @@
       </div>
 
       <div class="lg:col-span-3">
-        <label for="manual_description" class="text-sm font-medium text-slate-600 block mb-1">Description</label>
-        <input type="text" name="description" id="manual_description" value="{{ manual_form.description or '' }}" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or Service" required>
+        <label for="manual_description" class="text-sm font-medium text-slate-600 block mb-1">Description / Device Name</label>
+        <input type="text" name="description" id="manual_description" value="{{ manual_form.description or '' }}" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or core-router-01" required>
       </div>
 
       <div class="lg:col-span-1 flex items-end">
@@ -168,6 +169,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadingSpinner.classList.add('hidden');
             });
     });
+
+    // Trigger change event if a block is already selected on page load (e.g. after an error)
+    if (blockSelect.value) {
+        blockSelect.dispatchEvent(new Event('change'));
+        // Restore previously selected IP if available
+        const previousIP = "{{ manual_form.starting_ip or '' }}";
+        if (previousIP) {
+            // We need to wait for the fetch to complete. This is tricky.
+            // A simple but not perfect way:
+            setTimeout(() => {
+                const option = ipSelect.querySelector(`option[value="${previousIP}"]`);
+                if (option) {
+                    option.selected = true;
+                }
+            }, 1000); // Wait 1 sec. A better way would use MutationObserver or a callback.
+        }
+    }
 });
 </script>
 

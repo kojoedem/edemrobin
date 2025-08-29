@@ -867,6 +867,57 @@ def reactivate_allocation_action(
     return RedirectResponse(url="/dashboard/churned", status_code=303)
 
 
+# --- Device IP Management ---
+@app.get("/devices", response_class=HTMLResponse)
+@login_required
+def device_list_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    # Per user feedback, this page is now just for adding core devices,
+    # so we don't need to pass the device list.
+    return templates.TemplateResponse("devices.html", {
+        "request": request, "user": user
+    })
+
+@app.post("/devices/add")
+@permission_required("can_manage_allocations") # Re-using this permission
+def add_device_ip_action(
+    request: Request,
+    device_name: str = Form(...),
+    ip_address: str = Form(...),
+    location: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        iface = ipaddress.ip_interface(ip_address)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid IP address format.")
+
+    # Check for existing single IP
+    existing_ip = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.ip == str(iface.ip)).first()
+    if existing_ip:
+        raise HTTPException(status_code=400, detail=f"IP address {iface.ip} is already assigned.")
+
+    # Check for overlap with existing subnets
+    all_subnets = db.query(models.Subnet).all()
+    for s in all_subnets:
+        if iface.ip in ipaddress.ip_network(s.cidr):
+             raise HTTPException(status_code=400, detail=f"IP address {iface.ip} is part of an existing subnet ({s.cidr}). You cannot assign a single IP from within an allocated subnet here.")
+
+    # Get or create the device
+    device = crud.get_or_create_device(db, hostname=device_name, site=location)
+
+    interface_name = f"manual_{iface.ip}"
+    interface = crud.get_or_create_interface(db, device, interface_name)
+
+    crud.add_interface_address(
+        db, interface, ip=str(iface.ip),
+        prefix=iface.network.prefixlen,
+        subnet_id=None # Core device IPs are not part of a managed subnet
+    )
+
+    return RedirectResponse("/devices", status_code=303)
+
+
 @app.post("/dashboard/allocations/{subnet_id}/activate")
 @permission_required("can_manage_allocations")
 def activate_allocation_action(
