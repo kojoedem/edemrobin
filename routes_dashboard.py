@@ -211,16 +211,15 @@ def get_available_ips_for_block(request: Request, block_id: int, db: Session = D
 def manual_allocate_action(
     request: Request,
     block_id: int = Form(...),
-    starting_ip: Optional[str] = Form(None),
+    starting_ip: str = Form(...),
     mask: int = Form(...),
-    vlan_id: Optional[int] = Form(None),
+    vlan_id: Optional[str] = Form(None), # Accept string to handle ""
     description: str = Form(...),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
 
-    if not starting_ip:
-        raise HTTPException(status_code=400, detail="Starting IP was not provided. Please select a block and then a starting IP.")
+    final_vlan_id = int(vlan_id) if vlan_id and vlan_id.isdigit() else None
 
     cidr = f"{starting_ip}/{mask}"
 
@@ -252,7 +251,7 @@ def manual_allocate_action(
     new_subnet = models.Subnet(
         cidr=str(new_net),
         status=models.SubnetStatus.allocated,
-        vlan_id=vlan_id,
+        vlan_id=final_vlan_id,
         description=description,
         created_by=user.username,
         block_id=parent_block.id,
