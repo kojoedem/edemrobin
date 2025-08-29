@@ -276,7 +276,7 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                 for subnet in subnets:
                     subnet_network = ipaddress.ip_network(subnet.cidr, strict=False)
                     if nat_network == subnet_network or nat_network.subnet_of(subnet_network):
-                        client = crud.get_client_by_id(db, subnet.client_id)
+                        client = crud.get_client(db, subnet.client_id)
                         if client:
                             break
             except (ValueError, TypeError):
