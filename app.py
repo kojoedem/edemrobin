@@ -518,10 +518,19 @@ def client_detail_page(request: Request, client_id: int, db: Session = Depends(g
 # --- NAT IPs ---
 @app.get("/dashboard/nat_ips", response_class=HTMLResponse)
 @permission_required("can_view_nat")
-def nat_ips_page(request: Request, db: Session = Depends(get_db)):
+def nat_ips_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
-    nat_ips = db.query(models.NatIp).join(models.Client).order_by(models.Client.name).all()
-    return templates.TemplateResponse("nat_ips.html", {"request": request, "user": user, "nat_ips": nat_ips})
+    nat_ips_query = db.query(models.NatIp).join(models.Client)
+    if query:
+        nat_ips_query = nat_ips_query.filter(
+            or_(
+                models.NatIp.ip_address.ilike(f"%{query}%"),
+                models.NatIp.description.ilike(f"%{query}%"),
+                models.Client.name.ilike(f"%{query}%")
+            )
+        )
+    nat_ips = nat_ips_query.order_by(models.Client.name).all()
+    return templates.TemplateResponse("nat_ips.html", {"request": request, "user": user, "nat_ips": nat_ips, "query": query})
 
 
 # --- Search ---
@@ -691,13 +700,20 @@ def generate_logo_action(
 
 # GET - render VLAN form
 @app.get("/dashboard/add_vlan")
-def add_vlan(request: Request, db: Session = Depends(get_db)):
+def add_vlan(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse("/login", status_code=302)
 
-    vlans = db.query(models.VLAN).all()  # Assuming you have a VLAN model
-    return templates.TemplateResponse("add_vlan.html", {"request": request, "user": user, "vlans": vlans})
+    vlan_query = db.query(models.VLAN)
+    if query:
+        vlan_filter = [models.VLAN.name.ilike(f"%{query}%")]
+        if query.isdigit():
+            vlan_filter.append(models.VLAN.vlan_id == int(query))
+        vlan_query = vlan_query.filter(or_(*vlan_filter))
+
+    vlans = vlan_query.order_by(models.VLAN.vlan_id).all()
+    return templates.TemplateResponse("add_vlan.html", {"request": request, "user": user, "vlans": vlans, "query": query})
 
 # POST - create VLAN
 @app.post("/dashboard/add_vlan")
@@ -826,11 +842,21 @@ def deactivate_allocation_action(
 
 @app.get("/dashboard/churned", response_class=HTMLResponse)
 @admin_required
-def churned_allocations_page(request: Request, db: Session = Depends(get_db)):
+def churned_allocations_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
-    churned_allocations = db.query(models.Subnet).filter(
+    allocations_query = db.query(models.Subnet).filter(
         models.Subnet.status == models.SubnetStatus.deactivated
-    ).order_by(models.Subnet.created_at.desc()).all()
+    )
+    if query:
+        allocations_query = allocations_query.join(models.Client, isouter=True).filter(
+            or_(
+                models.Subnet.cidr.ilike(f"%{query}%"),
+                models.Subnet.description.ilike(f"%{query}%"),
+                models.Client.name.ilike(f"%{query}%")
+            )
+        )
+
+    churned_allocations = allocations_query.order_by(models.Subnet.created_at.desc()).all()
 
     return templates.TemplateResponse(
         "churned_allocations.html",
@@ -838,6 +864,7 @@ def churned_allocations_page(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "user": user,
             "allocations": churned_allocations,
+            "query": query
         }
     )
 
