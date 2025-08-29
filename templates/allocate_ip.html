@@ -71,9 +71,31 @@
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-8">
     <form method="post" action="/allocate/manual" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
-      <div class="lg:col-span-2">
-        <label for="manual_cidr" class="text-sm font-medium text-slate-600 block mb-1">Subnet to Allocate (CIDR)</label>
-        <input type="text" name="cidr" id="manual_cidr" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., 10.0.5.0/24" required>
+      <div>
+        <label for="manual_block_id" class="text-sm font-medium text-slate-600 block mb-1">Parent Block</label>
+        <select name="block_id" id="manual_block_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+          <option value="" disabled selected>-- Select a Block --</option>
+          {% for block in blocks %}
+            <option value="{{ block.id }}">{{ block.cidr }} ({{ block.description or 'No description' }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="manual_starting_ip" class="text-sm font-medium text-slate-600 block mb-1">Starting IP</label>
+        <select name="starting_ip" id="manual_starting_ip" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required disabled>
+          <option value="" disabled selected>-- Select Block First --</option>
+        </select>
+        <span id="ip_loading_spinner" class="hidden text-sm text-slate-500">Loading...</span>
+      </div>
+
+      <div>
+        <label for="manual_mask" class="text-sm font-medium text-slate-600 block mb-1">Mask</label>
+        <select name="mask" id="manual_mask" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+            {% for i in range(16, 33) %}
+              <option value="{{ i }}">/{{ i }}</option>
+            {% endfor %}
+        </select>
       </div>
 
       <div>
@@ -86,8 +108,6 @@
         </select>
       </div>
 
-      <div class="lg:col-span-1"></div>
-
       <div class="lg:col-span-3">
         <label for="manual_description" class="text-sm font-medium text-slate-600 block mb-1">Description</label>
         <input type="text" name="description" id="manual_description" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="e.g., Customer Name or Service" required>
@@ -98,6 +118,52 @@
       </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const blockSelect = document.getElementById('manual_block_id');
+    const ipSelect = document.getElementById('manual_starting_ip');
+    const loadingSpinner = document.getElementById('ip_loading_spinner');
+
+    blockSelect.addEventListener('change', function() {
+        const blockId = this.value;
+        ipSelect.disabled = true;
+        ipSelect.innerHTML = '<option value="" disabled selected>-- Loading... --</option>';
+        loadingSpinner.classList.remove('hidden');
+
+        if (!blockId) {
+            ipSelect.innerHTML = '<option value="" disabled selected>-- Select Block First --</option>';
+            loadingSpinner.classList.add('hidden');
+            return;
+        }
+
+        fetch(`/api/blocks/${blockId}/available_ips`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                ipSelect.innerHTML = '<option value="" disabled selected>-- Select Starting IP --</option>';
+                data.available_ips.forEach(ip => {
+                    const option = document.createElement('option');
+                    option.value = ip;
+                    option.textContent = ip;
+                    ipSelect.appendChild(option);
+                });
+                ipSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error fetching available IPs:', error);
+                ipSelect.innerHTML = '<option value="" disabled selected>-- Error Loading IPs --</option>';
+            })
+            .finally(() => {
+                loadingSpinner.classList.add('hidden');
+            });
+    });
+});
+</script>
 
 <h2 class="text-xl font-semibold text-slate-600 mb-4">Existing Active Allocations</h2>
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
