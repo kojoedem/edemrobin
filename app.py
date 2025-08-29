@@ -101,6 +101,15 @@ def home(request: Request, db: Session = Depends(get_db)):
                 elif subnet.status in [models.SubnetStatus.allocated, models.SubnetStatus.reserved]:
                     used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
+            # Single IP-based usage (for IPs not part of a defined subnet)
+            single_ips_in_block = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == None).all()
+            for single_ip in single_ips_in_block:
+                try:
+                    if ipaddress.ip_address(single_ip.ip) in parent_network:
+                        used_ips += 1
+                except ValueError:
+                    continue
+
             # NAT IP-based usage
             for nat_ip in all_nat_ips:
                 try:
@@ -439,39 +448,15 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
     return RedirectResponse(url="/admin/blocks", status_code=303)
 
 # --- Client Management ---
-from sqlalchemy import distinct
-
 @app.get("/admin/clients", response_class=HTMLResponse)
 @permission_required("can_view_clients")
-def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None, status_filter: str = "all"):
+def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
     clients_query = db.query(models.Client)
     if query:
         clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
-
-    if status_filter == "churn":
-        # Find clients who HAVE deactivated subnets
-        churned_client_ids = db.query(distinct(models.Subnet.client_id)).filter(
-            models.Subnet.status == models.SubnetStatus.deactivated,
-            models.Subnet.client_id != None
-        ).all()
-        churned_client_ids = [c[0] for c in churned_client_ids]
-        clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
-
-    elif status_filter == "not_churn":
-        # Find clients who DO NOT HAVE deactivated subnets
-        churned_client_ids = db.query(distinct(models.Subnet.client_id)).filter(
-            models.Subnet.status == models.SubnetStatus.deactivated,
-            models.Subnet.client_id != None
-        ).all()
-        churned_client_ids = [c[0] for c in churned_client_ids]
-        clients_query = clients_query.filter(models.Client.id.notin_(churned_client_ids))
-
     clients = clients_query.order_by(models.Client.name).all()
-    return templates.TemplateResponse("admin_clients.html", {
-        "request": request, "user": user, "clients": clients,
-        "query": query, "status_filter": status_filter
-    })
+    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query})
 
 @app.post("/admin/clients/create")
 @permission_required("can_manage_clients")
@@ -542,19 +527,10 @@ def client_detail_page(request: Request, client_id: int, db: Session = Depends(g
 # --- NAT IPs ---
 @app.get("/dashboard/nat_ips", response_class=HTMLResponse)
 @permission_required("can_view_nat")
-def nat_ips_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
+def nat_ips_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    nat_ips_query = db.query(models.NatIp).join(models.Client)
-    if query:
-        nat_ips_query = nat_ips_query.filter(
-            or_(
-                models.NatIp.ip_address.ilike(f"%{query}%"),
-                models.NatIp.description.ilike(f"%{query}%"),
-                models.Client.name.ilike(f"%{query}%")
-            )
-        )
-    nat_ips = nat_ips_query.order_by(models.Client.name).all()
-    return templates.TemplateResponse("nat_ips.html", {"request": request, "user": user, "nat_ips": nat_ips, "query": query})
+    nat_ips = db.query(models.NatIp).join(models.Client).order_by(models.Client.name).all()
+    return templates.TemplateResponse("nat_ips.html", {"request": request, "user": user, "nat_ips": nat_ips})
 
 
 # --- Search ---
@@ -724,20 +700,13 @@ def generate_logo_action(
 
 # GET - render VLAN form
 @app.get("/dashboard/add_vlan")
-def add_vlan(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
+def add_vlan(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse("/login", status_code=302)
 
-    vlan_query = db.query(models.VLAN)
-    if query:
-        vlan_filter = [models.VLAN.name.ilike(f"%{query}%")]
-        if query.isdigit():
-            vlan_filter.append(models.VLAN.vlan_id == int(query))
-        vlan_query = vlan_query.filter(or_(*vlan_filter))
-
-    vlans = vlan_query.order_by(models.VLAN.vlan_id).all()
-    return templates.TemplateResponse("add_vlan.html", {"request": request, "user": user, "vlans": vlans, "query": query})
+    vlans = db.query(models.VLAN).all()  # Assuming you have a VLAN model
+    return templates.TemplateResponse("add_vlan.html", {"request": request, "user": user, "vlans": vlans})
 
 # POST - create VLAN
 @app.post("/dashboard/add_vlan")
@@ -866,21 +835,11 @@ def deactivate_allocation_action(
 
 @app.get("/dashboard/churned", response_class=HTMLResponse)
 @admin_required
-def churned_allocations_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
+def churned_allocations_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    allocations_query = db.query(models.Subnet).filter(
+    churned_allocations = db.query(models.Subnet).filter(
         models.Subnet.status == models.SubnetStatus.deactivated
-    )
-    if query:
-        allocations_query = allocations_query.join(models.Client, isouter=True).filter(
-            or_(
-                models.Subnet.cidr.ilike(f"%{query}%"),
-                models.Subnet.description.ilike(f"%{query}%"),
-                models.Client.name.ilike(f"%{query}%")
-            )
-        )
-
-    churned_allocations = allocations_query.order_by(models.Subnet.created_at.desc()).all()
+    ).order_by(models.Subnet.created_at.desc()).all()
 
     return templates.TemplateResponse(
         "churned_allocations.html",
@@ -888,7 +847,6 @@ def churned_allocations_page(request: Request, db: Session = Depends(get_db), qu
             "request": request,
             "user": user,
             "allocations": churned_allocations,
-            "query": query
         }
     )
 
@@ -907,84 +865,6 @@ def reactivate_allocation_action(
     db.commit()
 
     return RedirectResponse(url="/dashboard/churned", status_code=303)
-
-
-# --- Device IP Management ---
-@app.get("/devices", response_class=HTMLResponse)
-@login_required
-def device_list_page(request: Request, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    # Fetch devices that have at least one IP address assigned
-    devices = db.query(models.Device).join(models.Interface).join(models.InterfaceAddress).distinct().all()
-
-    return templates.TemplateResponse("devices.html", {
-        "request": request, "user": user, "devices": devices
-    })
-
-@app.post("/devices/add")
-@permission_required("can_manage_allocations") # Re-using this permission
-def add_device_ip_action(
-    request: Request,
-    device_name: str = Form(...),
-    ip_address: str = Form(...),
-    location: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
-):
-    try:
-        iface = ipaddress.ip_interface(ip_address)
-        network = iface.network
-    except ValueError:
-        # This should be handled more gracefully with a proper error message
-        raise HTTPException(status_code=400, detail="Invalid IP address format.")
-
-    # Find the most specific subnet containing this IP
-    subnets = db.query(models.Subnet).all()
-    containing_subnet = None
-    for s in subnets:
-        if iface.ip in ipaddress.ip_network(s.cidr):
-            if not containing_subnet or containing_subnet.prefixlen < ipaddress.ip_network(s.cidr).prefixlen:
-                containing_subnet = s
-
-    # Get or create the device
-    device = crud.get_or_create_device(db, hostname=device_name, site=location)
-
-    # Create an interface for this IP, e.g., 'manually_assigned_0'
-    interface_count = len(device.interfaces)
-    interface_name = f"manually_assigned_{interface_count}"
-    interface = crud.get_or_create_interface(db, device, interface_name)
-
-    # Create the interface address
-    crud.add_interface_address(
-        db, interface, ip=str(iface.ip),
-        prefix=iface.network.prefixlen,
-        subnet_id=containing_subnet.id if containing_subnet else None
-    )
-
-    return RedirectResponse("/devices", status_code=303)
-
-@app.get("/devices/export_csv")
-@login_required
-def export_devices_csv(request: Request, db: Session = Depends(get_db)):
-    output = io.StringIO()
-    writer = csv.writer(output)
-
-    writer.writerow(["Device Name", "IP Address", "Interface", "Location/Site"])
-
-    devices = db.query(models.Device).join(models.Interface).join(models.InterfaceAddress).distinct().all()
-    for device in devices:
-        for iface in device.interfaces:
-            for addr in iface.addresses:
-                writer.writerow([
-                    device.hostname,
-                    f"{addr.ip}/{addr.prefix}",
-                    iface.name,
-                    device.site or ""
-                ])
-
-    output.seek(0)
-    return StreamingResponse(output, media_type="text/csv", headers={
-        "Content-Disposition": "attachment; filename=device_ip_assignments.csv"
-    })
 
 
 @app.post("/dashboard/allocations/{subnet_id}/activate")

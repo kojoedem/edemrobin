@@ -60,69 +60,50 @@ def parse_mikrotik_config(config_text: str):
     """
     Parses a MikroTik RouterOS configuration file to extract detailed information
     about interfaces, IP addresses, VLANs, NAT rules, and routes.
-    Handles multi-line commands and properties with hyphens.
 
     Returns a dictionary with structured data.
     """
-    # Regex to find property="value" or property=value pairs. Handles hyphens in keys.
-    prop_re = re.compile(r'([\w-]+)=(?:"([^"]*)"|([^ ]+))')
+    # Regex to find property="value" or property=value pairs
+    prop_re = re.compile(r'(\w+)=(?:"([^"]*)"|([^ ]+))')
 
     data = {
-        "vlans": [], "addresses": [], "nat_rules": [], "pools": [], "dhcp_servers": [],
+        "vlans": [], "addresses": [], "nat_rules": [],
         "routes": [], "vrfs": [], "comments": {}
     }
     current_section = None
-    has_content = False
+    has_content = False  # Flag to track if any data is parsed
 
-    # Pre-process to handle multi-line commands ending with '\'
-    processed_lines = []
-    buffer = ""
     for line in config_text.splitlines():
-        stripped_line = line.strip()
-        if not stripped_line:
-            continue
-        if stripped_line.endswith('\\'):
-            buffer += stripped_line[:-1].strip() + " "
-        else:
-            buffer += stripped_line
-            processed_lines.append(buffer)
-            buffer = ""
-    if buffer:
-        processed_lines.append(buffer)
-
-    for line in processed_lines:
+        line = line.strip()
         if not line or line.startswith('#'):
             continue
 
         if line.startswith('/'):
-            # Handles sections like /ip address, /ip firewall nat, etc.
-            # Also handles deeper sections like /ip dhcp-server network
-            current_section = ' '.join(line.split('/')[1:]).strip()
+            current_section = line.split('/')[1].strip()
             continue
 
         if line.startswith("add"):
             has_content = True
-            # Correctly parse properties from the part of the string after "add"
-            prop_string = line[3:].strip()
-            matches = prop_re.findall(prop_string)
+            # Correctly parse properties
+            matches = prop_re.findall(line)
             props = {key: val_quoted or val_unquoted for key, val_quoted, val_unquoted in matches}
 
-            if current_section == "interface vlan":
-                data["vlans"].append(props)
-            elif current_section == "ip address":
+            if current_section == "ip address" and "address" in props:
+                # Ensure comment is a simple string, not a list/tuple
+                comment = props.get('comment', '')
+                props['comment'] = comment.strip('"') if isinstance(comment, str) else ''
                 data["addresses"].append(props)
+
             elif current_section == "ip firewall nat":
                 data["nat_rules"].append(props)
-            elif current_section == "ip pool":
-                data["pools"].append(props)
-            elif current_section == "ip dhcp-server":
-                data["dhcp_servers"].append(props)
             elif current_section == "ip route":
                 data["routes"].append(props)
             elif current_section == "ip vrf":
                 data["vrfs"].append(props)
+            elif current_section == "interface vlan":
+                data["vlans"].append(props)
 
-
+    # Return None if no relevant content was found
     if not has_content:
         return None
 

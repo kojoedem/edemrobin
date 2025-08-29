@@ -3,25 +3,12 @@
 {% block title %}Churned Allocations - EDEMROBIN{% endblock %}
 
 {% block content %}
-<div class="mb-6 border-b border-slate-200 pb-4">
-    <h1 class="text-2xl font-bold text-slate-700">Churned (Deactivated) Allocations</h1>
-    <p class="text-slate-500">This is a list of subnets that have been deactivated and are no longer in use.</p>
-</div>
+<h1 class="text-2xl font-semibold mb-4">Churned (Deactivated) Allocations</h1>
+<p class="text-gray-600 mb-6">This is a list of subnets that have been deactivated and are no longer in use.</p>
 
-<!-- Search Form -->
-<div class="mb-4">
-    <form action="/dashboard/churned" method="get" class="flex items-center space-x-2">
-        <input type="text" name="query" value="{{ query or '' }}" placeholder="Search by Subnet, Client, or Description..." class="w-full md:w-1/3 px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition">
-        <button type="submit" class="bg-sky-600 text-white font-semibold rounded-lg px-4 py-2 hover:bg-sky-500 transition">Search</button>
-        {% if query %}
-        <a href="/dashboard/churned" class="text-slate-500 hover:text-slate-700 hover:underline">Clear</a>
-        {% endif %}
-    </form>
-</div>
-
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+<div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="min-w-full">
-    <thead class="bg-slate-50">
+    <thead class="bg-gray-50">
       <tr>
         <th class="text-left p-3 text-sm font-semibold">Subnet</th>
         <th class="text-left p-3 text-sm font-semibold">VLAN</th>

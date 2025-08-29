@@ -10,7 +10,7 @@ from ciscoconfparse import CiscoConfParse
 IGNORED_SUBNETS = ["10.128.128.0/24"]
 
 from database import get_db
-from models import SubnetStatus, User, IPBlock, NatIp, Subnet
+from models import SubnetStatus, User, IPBlock, NatIp
 import crud
 from security import get_current_user, permission_required
 
@@ -169,7 +169,7 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
     if not parsed_data:
         return
 
-    # --- Step 1: Pre-process and cache VLANs, DHCP Pools, and Servers ---
+    # --- Pre-process and cache VLANs for efficient lookup ---
     vlans_by_name = {}
     vlans_by_id = {}
     for vlan_data in parsed_data.get('vlans', []):
@@ -178,30 +178,23 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
             name = vlan_data.get('name')
             if not name or not vlan_id:
                 continue
+
             vlan_db = crud.get_or_create_vlan(db, vlan_id=vlan_id, name=name, created_by=user.username)
             vlans_by_name[name] = vlan_db
             vlans_by_id[vlan_id] = vlan_db
         except (ValueError, TypeError):
             continue
 
-    pools_by_name = {pool.get('name'): pool for pool in parsed_data.get('pools', [])}
-    interface_to_pool_info = {}
-    for server in parsed_data.get('dhcp_servers', []):
-        pool_name = server.get('address-pool')
-        iface_name = server.get('interface')
-        if pool_name in pools_by_name and iface_name:
-            pool_ranges = pools_by_name[pool_name].get('ranges')
-            if pool_ranges:
-                interface_to_pool_info[iface_name] = f"DHCP Pool: {pool_ranges}"
-
     hostname = next((item.get('name') for item in parsed_data.get('system', []) if item.get('name')), f"mikrotik-device-{filename}")
     device = crud.get_or_create_device(db, hostname=hostname)
 
-    # --- Step 2: Process IP Addresses and create Subnets ---
+    # The logic now creates clients inside the address loop based on the final description.
+    # The pre-creation of clients based on comments is no longer needed.
+
     for addr in parsed_data.get('addresses', []):
         try:
             iface_name = addr.get('interface')
-            if not iface_name or not addr.get('address'):
+            if not iface_name:
                 continue
 
             iface_addr = ipaddress.ip_interface(addr['address'])
@@ -212,29 +205,37 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
 
             iface = crud.get_or_create_interface(db, device, iface_name)
 
-            linked_vlan_object = vlans_by_name.get(iface_name)
-            if not linked_vlan_object:
+            # --- Advanced VLAN Matching Logic ---
+            linked_vlan_object = None
+            # Strategy 1: Direct name match
+            if iface_name in vlans_by_name:
+                linked_vlan_object = vlans_by_name[iface_name]
+            # Strategy 2: Numeric match from interface name
+            else:
                 match = re.search(r'\d+', iface_name)
                 if match:
                     try:
                         num = int(match.group(0))
-                        linked_vlan_object = vlans_by_id.get(num)
+                        if num in vlans_by_id:
+                            linked_vlan_object = vlans_by_id[num]
                     except (ValueError, KeyError):
-                        pass
+                        pass # No matching vlan_id found
 
-            base_comment = addr.get('comment', '')
-            description = base_comment
+            # --- Description and Client Logic ---
+            comment = addr.get('comment', '')
+            description = comment
             if not description:
-                description = linked_vlan_object.name if linked_vlan_object else iface_name
+                if linked_vlan_object:
+                    description = linked_vlan_object.name
+                else:
+                    description = iface_name
 
-            pool_info = interface_to_pool_info.get(iface_name)
-            if pool_info:
-                description = f"{description} ({pool_info})" if description else pool_info
-
+            # If no meaningful description could be found, skip this entry
             if not description:
                 continue
 
-            client = crud.get_or_create_client(db, name=base_comment or description, is_active=False)
+            # Ensure a client exists for this description
+            client = crud.get_or_create_client(db, name=description, is_active=False)
 
             is_disabled = addr.get('disabled') == 'true'
             assigned_parent = next((p_net for p_net in parent_networks if network.subnet_of(p_net)), None)
@@ -246,46 +247,31 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                 subnet = crud.create_or_get_subnet(
                     db, str(network.with_prefixlen), parent_block_obj,
                     status=status, created_by=user.username,
-                    client_id=client.id,
+                    client_id=client.id if client else None,
                     description=description,
                     vlan_id=linked_vlan_object.id if linked_vlan_object else None
                 )
                 crud.add_interface_address(db, iface, ip=str(iface_addr.ip), prefix=network.prefixlen, subnet_id=subnet.id)
-        except (ValueError, TypeError):
+        except ValueError:
             continue
 
-    # --- Step 3: Process NAT Rules ---
     for nat_rule in parsed_data.get('nat_rules', []):
-        if nat_rule.get('action') != 'src-nat' or 'to-addresses' not in nat_rule:
-            continue
+        if nat_rule.get('action') == 'src-nat' and 'to-addresses' in nat_rule:
+            client_cidr = nat_rule.get('src-address')
+            if not client_cidr: continue
 
-        client = None
-        nat_description = nat_rule.get('comment', "Imported from MikroTik NAT")
+            # Find client based on the source address of the NAT rule
+            client = None
+            for addr in parsed_data['addresses']:
+                if addr['address'] == client_cidr:
+                    if addr.get('comment'):
+                        client = crud.get_client_by_name(db, addr['comment'])
+                    break
 
-        if nat_rule.get('comment'):
-            match = re.search(r'\[([^\]]+)\]', nat_rule.get('comment'))
-            if match:
-                client_name = match.group(1)
-                client = crud.get_or_create_client(db, name=client_name, is_active=False)
-
-        if not client and nat_rule.get('src-address'):
-            try:
-                nat_network = ipaddress.ip_network(nat_rule['src-address'], strict=False)
-                # This could be improved by querying subnets more efficiently
-                subnets = db.query(Subnet).filter(Subnet.client_id != None).all()
-                for subnet in subnets:
-                    subnet_network = ipaddress.ip_network(subnet.cidr, strict=False)
-                    if nat_network == subnet_network or nat_network.subnet_of(subnet_network):
-                        client = crud.get_client(db, subnet.client_id)
-                        if client:
-                            break
-            except (ValueError, TypeError):
-                pass
-
-        if client:
-            try:
-                nat_ip_cidr = f"{nat_rule['to-addresses']}/32"
-                if not db.query(NatIp).filter_by(ip_address=nat_ip_cidr).first():
-                    crud.create_nat_ip(db, ip_address=nat_ip_cidr, client_id=client.id, description=nat_description)
-            except Exception:
-                db.rollback()
+            if client:
+                try:
+                    nat_ip_cidr = f"{nat_rule['to-addresses']}/32"
+                    if not db.query(NatIp).filter_by(ip_address=nat_ip_cidr).first():
+                        crud.create_nat_ip(db, ip_address=nat_ip_cidr, client_id=client.id, description="Imported from MikroTik NAT")
+                except Exception:
+                    db.rollback()
