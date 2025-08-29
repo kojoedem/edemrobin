@@ -46,6 +46,8 @@ def allocate_ip_page(request: Request, db: Session = Depends(get_db)):
             "blocks": blocks,
             "vlans": vlans,
             "allocations": allocations,
+            "manual_form": None, # Ensure manual_form is always defined
+            "error": None
         }
     )
 
