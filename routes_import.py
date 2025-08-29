@@ -10,7 +10,7 @@ from ciscoconfparse import CiscoConfParse
 IGNORED_SUBNETS = ["10.128.128.0/24"]
 
 from database import get_db
-from models import SubnetStatus, User, IPBlock, NatIp
+from models import SubnetStatus, User, IPBlock, NatIp, Subnet
 import crud
 from security import get_current_user, permission_required
 
