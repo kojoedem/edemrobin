@@ -909,6 +909,84 @@ def reactivate_allocation_action(
     return RedirectResponse(url="/dashboard/churned", status_code=303)
 
 
+# --- Device IP Management ---
+@app.get("/devices", response_class=HTMLResponse)
+@login_required
+def device_list_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+    # Fetch devices that have at least one IP address assigned
+    devices = db.query(models.Device).join(models.Interface).join(models.InterfaceAddress).distinct().all()
+
+    return templates.TemplateResponse("devices.html", {
+        "request": request, "user": user, "devices": devices
+    })
+
+@app.post("/devices/add")
+@permission_required("can_manage_allocations") # Re-using this permission
+def add_device_ip_action(
+    request: Request,
+    device_name: str = Form(...),
+    ip_address: str = Form(...),
+    location: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        iface = ipaddress.ip_interface(ip_address)
+        network = iface.network
+    except ValueError:
+        # This should be handled more gracefully with a proper error message
+        raise HTTPException(status_code=400, detail="Invalid IP address format.")
+
+    # Find the most specific subnet containing this IP
+    subnets = db.query(models.Subnet).all()
+    containing_subnet = None
+    for s in subnets:
+        if iface.ip in ipaddress.ip_network(s.cidr):
+            if not containing_subnet or containing_subnet.prefixlen < ipaddress.ip_network(s.cidr).prefixlen:
+                containing_subnet = s
+
+    # Get or create the device
+    device = crud.get_or_create_device(db, hostname=device_name, site=location)
+
+    # Create an interface for this IP, e.g., 'manually_assigned_0'
+    interface_count = len(device.interfaces)
+    interface_name = f"manually_assigned_{interface_count}"
+    interface = crud.get_or_create_interface(db, device, interface_name)
+
+    # Create the interface address
+    crud.add_interface_address(
+        db, interface, ip=str(iface.ip),
+        prefix=iface.network.prefixlen,
+        subnet_id=containing_subnet.id if containing_subnet else None
+    )
+
+    return RedirectResponse("/devices", status_code=303)
+
+@app.get("/devices/export_csv")
+@login_required
+def export_devices_csv(request: Request, db: Session = Depends(get_db)):
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(["Device Name", "IP Address", "Interface", "Location/Site"])
+
+    devices = db.query(models.Device).join(models.Interface).join(models.InterfaceAddress).distinct().all()
+    for device in devices:
+        for iface in device.interfaces:
+            for addr in iface.addresses:
+                writer.writerow([
+                    device.hostname,
+                    f"{addr.ip}/{addr.prefix}",
+                    iface.name,
+                    device.site or ""
+                ])
+
+    output.seek(0)
+    return StreamingResponse(output, media_type="text/csv", headers={
+        "Content-Disposition": "attachment; filename=device_ip_assignments.csv"
+    })
+
+
 @app.post("/dashboard/allocations/{subnet_id}/activate")
 @permission_required("can_manage_allocations")
 def activate_allocation_action(
