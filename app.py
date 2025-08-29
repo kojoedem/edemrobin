@@ -439,6 +439,8 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
     return RedirectResponse(url="/admin/blocks", status_code=303)
 
 # --- Client Management ---
+from sqlalchemy import distinct
+
 @app.get("/admin/clients", response_class=HTMLResponse)
 @permission_required("can_view_clients")
 def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None, status_filter: str = "all"):
@@ -447,10 +449,23 @@ def admin_clients_page(request: Request, db: Session = Depends(get_db), query: O
     if query:
         clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
 
-    if status_filter == "active":
-        clients_query = clients_query.filter(models.Client.is_active == True)
-    elif status_filter == "inactive":
-        clients_query = clients_query.filter(models.Client.is_active == False)
+    if status_filter == "churn":
+        # Find clients who HAVE deactivated subnets
+        churned_client_ids = db.query(distinct(models.Subnet.client_id)).filter(
+            models.Subnet.status == models.SubnetStatus.deactivated,
+            models.Subnet.client_id != None
+        ).all()
+        churned_client_ids = [c[0] for c in churned_client_ids]
+        clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
+
+    elif status_filter == "not_churn":
+        # Find clients who DO NOT HAVE deactivated subnets
+        churned_client_ids = db.query(distinct(models.Subnet.client_id)).filter(
+            models.Subnet.status == models.SubnetStatus.deactivated,
+            models.Subnet.client_id != None
+        ).all()
+        churned_client_ids = [c[0] for c in churned_client_ids]
+        clients_query = clients_query.filter(models.Client.id.notin_(churned_client_ids))
 
     clients = clients_query.order_by(models.Client.name).all()
     return templates.TemplateResponse("admin_clients.html", {

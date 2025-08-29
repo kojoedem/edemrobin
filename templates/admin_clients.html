@@ -41,15 +41,15 @@
             {% endif %}
         </div>
         <div class="flex items-center gap-6 text-sm text-slate-600">
-            <label class="font-medium">Filter by status:</label>
+            <label class="font-medium">Filter by churn status:</label>
             <label class="flex items-center gap-2">
                 <input type="radio" name="status_filter" value="all" onchange="this.form.submit()" {% if status_filter == 'all' %}checked{% endif %}> All
             </label>
             <label class="flex items-center gap-2">
-                <input type="radio" name="status_filter" value="active" onchange="this.form.submit()" {% if status_filter == 'active' %}checked{% endif %}> Active
+                <input type="radio" name="status_filter" value="not_churn" onchange="this.form.submit()" {% if status_filter == 'not_churn' %}checked{% endif %}> Not Churned
             </label>
             <label class="flex items-center gap-2">
-                <input type="radio" name="status_filter" value="inactive" onchange="this.form.submit()" {% if status_filter == 'inactive' %}checked{% endif %}> Inactive (Churned)
+                <input type="radio" name="status_filter" value="churn" onchange="this.form.submit()" {% if status_filter == 'churn' %}checked{% endif %}> Churned
             </label>
         </div>
     </form>
