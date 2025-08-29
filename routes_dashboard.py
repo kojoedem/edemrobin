@@ -153,16 +153,73 @@ def add_nat_ip_action(
     return RedirectResponse("/dashboard/nat_ips", status_code=303)
 
 
+def get_next_available_ips(parent_cidr: str, used_subnets_cidrs: list[str], limit=100):
+    try:
+        parent_net = ipaddress.ip_network(parent_cidr)
+        used_nets = sorted([ipaddress.ip_network(s) for s in used_subnets_cidrs])
+    except ValueError:
+        return []
+
+    available_ips = []
+
+    last_ip = parent_net.network_address
+
+    for used_net in used_nets:
+        # Gap between the last used IP and the current network's start
+        gap_start = last_ip + 1
+        gap_end = used_net.network_address -1
+
+        if gap_start <= gap_end:
+            # Add IPs from the gap
+            current_ip = gap_start
+            while current_ip <= gap_end and len(available_ips) < limit:
+                available_ips.append(str(current_ip))
+                current_ip += 1
+
+        if len(available_ips) >= limit:
+            break
+
+        last_ip = used_net.broadcast_address
+
+    # After the last used network until the end of the parent
+    if len(available_ips) < limit:
+        current_ip = last_ip + 1
+        while current_ip < parent_net.broadcast_address and len(available_ips) < limit:
+            available_ips.append(str(current_ip))
+            current_ip += 1
+
+    return available_ips
+
+
+@router.get("/api/blocks/{block_id}/available_ips")
+@permission_required("can_manage_allocations")
+def get_available_ips_for_block(request: Request, block_id: int, db: Session = Depends(get_db)):
+    block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Block not found")
+
+    subnets = db.query(models.Subnet).filter(models.Subnet.block_id == block_id).all()
+    used_cidrs = [s.cidr for s in subnets]
+
+    available_ips = get_next_available_ips(block.cidr, used_cidrs)
+
+    return {"available_ips": available_ips}
+
+
 @router.post("/allocate/manual")
 @permission_required("can_manage_allocations")
 def manual_allocate_action(
     request: Request,
-    cidr: str = Form(...),
+    block_id: int = Form(...),
+    starting_ip: str = Form(...),
+    mask: int = Form(...),
     vlan_id: Optional[int] = Form(None),
     description: str = Form(...),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
+
+    cidr = f"{starting_ip}/{mask}"
 
     # Validate CIDR
     try:
@@ -171,21 +228,13 @@ def manual_allocate_action(
         raise HTTPException(status_code=400, detail="Invalid CIDR format.")
 
     # Find parent block
-    if user.is_admin:
-        allowed_blocks = db.query(models.IPBlock).all()
-    else:
-        allowed_blocks = user.allowed_blocks
-
-    parent_block = None
-    for block in allowed_blocks:
-        if block.cidr == 'Unassigned':
-            continue
-        if new_net.subnet_of(ipaddress.ip_network(block.cidr)):
-            parent_block = block
-            break
-
+    parent_block = db.query(models.IPBlock).filter(models.IPBlock.id == block_id).first()
     if not parent_block:
-        raise HTTPException(status_code=403, detail="This subnet does not belong to any of your allowed blocks.")
+        raise HTTPException(status_code=404, detail="Parent block not found.")
+
+    # Check if user is allowed to use this block
+    if not user.is_admin and parent_block not in user.allowed_blocks:
+        raise HTTPException(status_code=403, detail="You are not allowed to allocate from this block.")
 
     # Check for overlaps
     existing_subnets = db.query(models.Subnet).filter(models.Subnet.block_id == parent_block.id).all()
