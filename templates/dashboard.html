@@ -117,6 +117,32 @@
                             </tbody>
                         </table>
 
+                        {% if stat.devices %}
+                        <div class="mt-4">
+                            <h4 class="text-sm font-semibold mb-2">Devices in this Block</h4>
+                            <table class="min-w-full text-sm">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="text-left p-2">IP Address</th>
+                                        <th class="text-left p-2">Device Name</th>
+                                        <th class="text-left p-2">Interface</th>
+                                        <th class="text-left p-2">Gateway</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for device in stat.devices %}
+                                    <tr class="border-b last:border-b-0">
+                                        <td class="p-2 font-mono">{{ device.ip }}</td>
+                                        <td class="p-2">{{ device.interface.device.hostname }}</td>
+                                        <td class="p-2">{{ device.interface.name }}</td>
+                                        <td class="p-2">{{ device.gateway or 'N/A' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+
                         {% if stat.nat_ips %}
                         <div class="mt-4">
                             <h4 class="text-sm font-semibold mb-2">NAT IPs in this Block</h4>

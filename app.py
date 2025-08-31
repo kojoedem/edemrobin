@@ -143,7 +143,8 @@ def home(request: Request, db: Session = Depends(get_db)):
                 "free_ips": free_ips,
                 "utilization": utilization,
                 "clients": clients,
-                "nat_ips": nat_ips_in_block
+                "nat_ips": nat_ips_in_block,
+                "devices": single_ips_in_block
             })
         except ValueError:
             continue # Skip invalid CIDR in stats
