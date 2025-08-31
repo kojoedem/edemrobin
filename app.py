@@ -468,10 +468,12 @@ def admin_clients_page(request: Request, db: Session = Depends(get_db), query: O
     if query:
         clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
 
-    if status == "active":
-        clients_query = clients_query.filter(models.Client.is_active == True)
-    elif status == "inactive":
-        clients_query = clients_query.filter(models.Client.is_active == False)
+    if status == "inactive": # Churned
+        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated).distinct()}
+        clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
+    elif status == "active": # Not Churned
+        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated).distinct()}
+        clients_query = clients_query.filter(models.Client.id.notin_(churned_client_ids))
 
     clients = clients_query.order_by(models.Client.name).all()
     return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query, "status": status})
@@ -558,10 +560,14 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
     user = get_current_user(request, db)
 
     # Search Clients
-    if query.lower() in ["churned", "churn", "inactive"]:
-        clients = db.query(models.Client).filter(models.Client.is_active == False).all()
-    else:
-        clients = db.query(models.Client).filter(models.Client.name.ilike(f"%{query}%")).all()
+    clients_query = db.query(models.Client)
+    if query:
+        if query.lower() in ["churned", "churn", "inactive"]:
+            churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated).distinct()}
+            clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
+        else:
+            clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
+    clients = clients_query.order_by(models.Client.name).all()
 
     # Search Subnets and IPs
     subnets_data = []
