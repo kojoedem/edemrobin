@@ -58,7 +58,7 @@ def allocate_ip_action(
     request: Request,
     block_id: int = Form(...),
     subnet_size: int = Form(...),
-    vlan_id: Optional[int] = Form(None),
+    vlan_id: Optional[str] = Form(None),
     description: str = Form(...),
     description_format: str = Form("uppercase"),
     db: Session = Depends(get_db),
@@ -79,6 +79,7 @@ def allocate_ip_action(
 
     # Get or create the client based on the description
     client = crud.get_or_create_client(db, name=description)
+    final_vlan_id = int(vlan_id) if vlan_id and vlan_id.isdigit() else None
 
     try:
         new_subnet = allocate_subnet(
@@ -86,7 +87,7 @@ def allocate_ip_action(
             block_id=block_id,
             user=user,
             subnet_size=subnet_size,
-            vlan_id=vlan_id,
+            vlan_id=final_vlan_id,
             description=final_description,
             client_id=client.id
         )
