@@ -248,7 +248,7 @@ def manual_allocate_action(
             device = crud.get_or_create_device(db, hostname=description)
             interface = crud.get_or_create_interface(db, device, "manual_assignment")
             crud.add_interface_address(db, interface, ip=str(ip_addr), prefix=32, subnet_id=None, gateway=gateway)
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse("/dashboard/allocate_ip", status_code=303)
 
         except ValueError as e:
             return render_form_with_error(str(e))
