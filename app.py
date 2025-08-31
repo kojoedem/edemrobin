@@ -441,8 +441,17 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
     if not block:
         raise HTTPException(status_code=404, detail="IP Block not found")
 
-    # Cascading delete of subnets within this block
-    db.query(models.Subnet).filter(models.Subnet.block_id == block_id).delete(synchronize_session=False)
+    # Get all subnets in the block
+    subnets_in_block = db.query(models.Subnet).filter(models.Subnet.block_id == block_id).all()
+    subnet_ids = [s.id for s in subnets_in_block]
+
+    # Delete all interface addresses associated with those subnets
+    if subnet_ids:
+        db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id.in_(subnet_ids)).delete(synchronize_session=False)
+
+    # Now, it's safe to delete the subnets
+    if subnet_ids:
+        db.query(models.Subnet).filter(models.Subnet.id.in_(subnet_ids)).delete(synchronize_session=False)
 
     db.delete(block)
     db.commit()
