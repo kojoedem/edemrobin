@@ -102,11 +102,13 @@ def home(request: Request, db: Session = Depends(get_db)):
                     used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
             # Single IP-based usage (for IPs not part of a defined subnet)
-            single_ips_in_block = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == None).all()
-            for single_ip in single_ips_in_block:
+            devices_in_block = []
+            all_single_ips = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == None).all()
+            for single_ip in all_single_ips:
                 try:
                     if ipaddress.ip_address(single_ip.ip) in parent_network:
                         used_ips += 1
+                        devices_in_block.append(single_ip)
                 except ValueError:
                     continue
 
@@ -144,7 +146,7 @@ def home(request: Request, db: Session = Depends(get_db)):
                 "utilization": utilization,
                 "clients": clients,
                 "nat_ips": nat_ips_in_block,
-                "devices": single_ips_in_block
+                "devices": devices_in_block
             })
         except ValueError:
             continue # Skip invalid CIDR in stats
@@ -882,47 +884,71 @@ def reactivate_allocation_action(
 @login_required
 def device_list_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    # Per user feedback, this page is now just for adding core devices,
-    # so we don't need to pass the device list.
+    if user.is_admin:
+        blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+    else:
+        blocks = user.allowed_blocks
     return templates.TemplateResponse("devices.html", {
-        "request": request, "user": user
+        "request": request, "user": user, "blocks": blocks, "error": None
     })
 
 @app.post("/devices/add")
 @permission_required("can_manage_allocations") # Re-using this permission
 def add_device_ip_action(
     request: Request,
-    device_name: str = Form(...),
+    block_id: int = Form(...),
     ip_address: str = Form(...),
+    hostname: str = Form(...),
+    gateway: Optional[str] = Form(None),
+    username: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
     location: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
+    user = get_current_user(request, db)
+    # Helper to re-render form on error
+    def render_form_with_error(error_message: str):
+        if user.is_admin:
+            blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
+        else:
+            blocks = user.allowed_blocks
+        return templates.TemplateResponse("devices.html", {
+            "request": request, "user": user, "blocks": blocks, "error": error_message
+        }, status_code=400)
+
     try:
-        iface = ipaddress.ip_interface(ip_address)
+        ip_addr = ipaddress.ip_address(ip_address)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid IP address format.")
+        return render_form_with_error("Invalid IP address format.")
 
     # Check for existing single IP
-    existing_ip = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.ip == str(iface.ip)).first()
+    existing_ip = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.ip == str(ip_addr)).first()
     if existing_ip:
-        raise HTTPException(status_code=400, detail=f"IP address {iface.ip} is already assigned.")
+        return render_form_with_error(f"IP address {ip_addr} is already assigned.")
 
     # Check for overlap with existing subnets
     all_subnets = db.query(models.Subnet).all()
     for s in all_subnets:
-        if iface.ip in ipaddress.ip_network(s.cidr):
-             raise HTTPException(status_code=400, detail=f"IP address {iface.ip} is part of an existing subnet ({s.cidr}). You cannot assign a single IP from within an allocated subnet here.")
+        if ip_addr in ipaddress.ip_network(s.cidr):
+             return render_form_with_error(f"IP address {ip_addr} is part of an existing subnet ({s.cidr}).")
 
     # Get or create the device
-    device = crud.get_or_create_device(db, hostname=device_name, site=location)
+    device = crud.get_or_create_device(
+        db,
+        hostname=hostname,
+        site=location,
+        username=username,
+        password=password
+    )
 
-    interface_name = f"manual_{iface.ip}"
+    interface_name = f"manual_{ip_addr}"
     interface = crud.get_or_create_interface(db, device, interface_name)
 
     crud.add_interface_address(
-        db, interface, ip=str(iface.ip),
-        prefix=iface.network.prefixlen,
-        subnet_id=None # Core device IPs are not part of a managed subnet
+        db, interface, ip=str(ip_addr),
+        prefix=32, # Core devices are assigned as /32
+        subnet_id=None,
+        gateway=gateway
     )
 
     return RedirectResponse("/devices", status_code=303)

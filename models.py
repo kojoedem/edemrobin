@@ -128,6 +128,8 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     hostname = Column(String, unique=True, nullable=False)
+    username = Column(String, nullable=True)
+    password = Column(String, nullable=True)
     vendor = Column(String, default="cisco")
     model = Column(String, nullable=True)
     mgmt_ip = Column(String, nullable=True)
