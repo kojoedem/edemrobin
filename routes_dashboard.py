@@ -58,7 +58,7 @@ def allocate_ip_action(
     request: Request,
     block_id: int = Form(...),
     subnet_size: int = Form(...),
-    vlan_id: Optional[str] = Form(None),
+    vlan_id: Optional[int] = Form(None),
     description: str = Form(...),
     description_format: str = Form("uppercase"),
     db: Session = Depends(get_db),
@@ -79,7 +79,6 @@ def allocate_ip_action(
 
     # Get or create the client based on the description
     client = crud.get_or_create_client(db, name=description)
-    final_vlan_id = int(vlan_id) if vlan_id and vlan_id.isdigit() else None
 
     try:
         new_subnet = allocate_subnet(
@@ -87,7 +86,7 @@ def allocate_ip_action(
             block_id=block_id,
             user=user,
             subnet_size=subnet_size,
-            vlan_id=final_vlan_id,
+            vlan_id=vlan_id,
             description=final_description,
             client_id=client.id
         )
@@ -207,7 +206,6 @@ def manual_allocate_action(
     mask: int = Form(...),
     vlan_id: Optional[str] = Form(None),
     description: str = Form(...),
-    gateway: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
@@ -224,7 +222,7 @@ def manual_allocate_action(
         return templates.TemplateResponse("allocate_ip.html", {
             "request": request, "user": user, "blocks": blocks, "vlans": vlans,
             "allocations": allocations, "error": error_message,
-            "manual_form": {"block_id": block_id, "starting_ip": starting_ip, "mask": mask, "vlan_id": final_vlan_id, "description": description, "gateway": gateway}
+            "manual_form": {"block_id": block_id, "starting_ip": starting_ip, "mask": mask, "vlan_id": final_vlan_id, "description": description}
         }, status_code=400)
 
     # --- Conditional Logic: Single IP vs. Subnet ---
@@ -247,8 +245,8 @@ def manual_allocate_action(
             # Get or create a device based on the description
             device = crud.get_or_create_device(db, hostname=description)
             interface = crud.get_or_create_interface(db, device, "manual_assignment")
-            crud.add_interface_address(db, interface, ip=str(ip_addr), prefix=32, subnet_id=None, gateway=gateway)
-            return RedirectResponse("/dashboard/allocate_ip", status_code=303)
+            crud.add_interface_address(db, interface, ip=str(ip_addr), prefix=32, subnet_id=None)
+            return RedirectResponse("/devices", status_code=303)
 
         except ValueError as e:
             return render_form_with_error(str(e))

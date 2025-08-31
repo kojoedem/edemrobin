@@ -74,6 +74,9 @@ def home(request: Request, db: Session = Depends(get_db)):
     # --- Stats ---
     vlan_count = db.query(models.VLAN).count()
     client_count = db.query(models.Client).filter(models.Client.is_active == True).count()
+    device_count = db.query(models.Device).count()
+    churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
+    churned_client_count = len(churned_client_ids)
 
     # Pre-fetch all NAT IPs
     all_nat_ips = db.query(models.NatIp).all()
@@ -102,13 +105,11 @@ def home(request: Request, db: Session = Depends(get_db)):
                     used_ips += ipaddress.ip_network(subnet.cidr).num_addresses
 
             # Single IP-based usage (for IPs not part of a defined subnet)
-            devices_in_block = []
-            all_single_ips = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == None).all()
-            for single_ip in all_single_ips:
+            single_ips_in_block = db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id == None).all()
+            for single_ip in single_ips_in_block:
                 try:
                     if ipaddress.ip_address(single_ip.ip) in parent_network:
                         used_ips += 1
-                        devices_in_block.append(single_ip)
                 except ValueError:
                     continue
 
@@ -145,8 +146,7 @@ def home(request: Request, db: Session = Depends(get_db)):
                 "free_ips": free_ips,
                 "utilization": utilization,
                 "clients": clients,
-                "nat_ips": nat_ips_in_block,
-                "devices": devices_in_block
+                "nat_ips": nat_ips_in_block
             })
         except ValueError:
             continue # Skip invalid CIDR in stats
@@ -161,7 +161,8 @@ def home(request: Request, db: Session = Depends(get_db)):
         {
             "request": request, "user": user, "block_stats": block_stats,
             "recent_allocations": recent_allocations, "vlan_count": vlan_count,
-            "client_count": client_count
+            "client_count": client_count, "device_count": device_count,
+            "churned_client_count": churned_client_count
         }
     )
 
@@ -443,17 +444,8 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
     if not block:
         raise HTTPException(status_code=404, detail="IP Block not found")
 
-    # Get all subnets in the block
-    subnets_in_block = db.query(models.Subnet).filter(models.Subnet.block_id == block_id).all()
-    subnet_ids = [s.id for s in subnets_in_block]
-
-    # Delete all interface addresses associated with those subnets
-    if subnet_ids:
-        db.query(models.InterfaceAddress).filter(models.InterfaceAddress.subnet_id.in_(subnet_ids)).delete(synchronize_session=False)
-
-    # Now, it's safe to delete the subnets
-    if subnet_ids:
-        db.query(models.Subnet).filter(models.Subnet.id.in_(subnet_ids)).delete(synchronize_session=False)
+    # Cascading delete of subnets within this block
+    db.query(models.Subnet).filter(models.Subnet.block_id == block_id).delete(synchronize_session=False)
 
     db.delete(block)
     db.commit()
@@ -462,21 +454,13 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
 # --- Client Management ---
 @app.get("/admin/clients", response_class=HTMLResponse)
 @permission_required("can_view_clients")
-def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None, status: str = "all"):
+def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
     user = get_current_user(request, db)
     clients_query = db.query(models.Client)
     if query:
         clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
-
-    if status == "inactive": # Churned
-        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
-        clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
-    elif status == "active": # Not Churned
-        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
-        clients_query = clients_query.filter(models.Client.id.notin_(churned_client_ids))
-
     clients = clients_query.order_by(models.Client.name).all()
-    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query, "status": status})
+    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query})
 
 @app.post("/admin/clients/create")
 @permission_required("can_manage_clients")
@@ -560,14 +544,7 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
     user = get_current_user(request, db)
 
     # Search Clients
-    clients_query = db.query(models.Client)
-    if query:
-        if query.lower() in ["churned", "churn", "inactive"]:
-            churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
-            clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
-        else:
-            clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
-    clients = clients_query.order_by(models.Client.name).all()
+    clients = db.query(models.Client).filter(models.Client.name.ilike(f"%{query}%")).all()
 
     # Search Subnets and IPs
     subnets_data = []
@@ -604,21 +581,9 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
         vlan_filter.append(models.VLAN.vlan_id == int(query))
     vlans = db.query(models.VLAN).filter(or_(*vlan_filter)).all()
 
-    # Search NAT IPs
-    nat_ips = db.query(models.NatIp).filter(
-        or_(
-            models.NatIp.ip_address.ilike(f"%{query}%"),
-            models.NatIp.description.ilike(f"%{query}%")
-        )
-    ).all()
-
-    # Search Devices
-    devices = db.query(models.Device).filter(models.Device.hostname.ilike(f"%{query}%")).all()
-
     return templates.TemplateResponse("search_results.html", {
         "request": request, "user": user, "query": query,
-        "clients": clients, "subnets": subnets_data, "vlans": vlans,
-        "nat_ips": nat_ips, "devices": devices
+        "clients": clients, "subnets": subnets_data, "vlans": vlans
     })
 
 
@@ -915,8 +880,9 @@ def device_list_page(request: Request, db: Session = Depends(get_db)):
         blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
     else:
         blocks = user.allowed_blocks
+    devices = db.query(models.Device).order_by(models.Device.hostname).all()
     return templates.TemplateResponse("devices.html", {
-        "request": request, "user": user, "blocks": blocks, "error": None
+        "request": request, "user": user, "devices": devices, "blocks": blocks, "error": None
     })
 
 @app.post("/devices/add")
@@ -926,7 +892,6 @@ def add_device_ip_action(
     block_id: int = Form(...),
     ip_address: str = Form(...),
     hostname: str = Form(...),
-    gateway: Optional[str] = Form(None),
     username: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     location: Optional[str] = Form(None),
@@ -939,8 +904,9 @@ def add_device_ip_action(
             blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
         else:
             blocks = user.allowed_blocks
+        devices = db.query(models.Device).order_by(models.Device.hostname).all()
         return templates.TemplateResponse("devices.html", {
-            "request": request, "user": user, "blocks": blocks, "error": error_message
+            "request": request, "user": user, "devices": devices, "blocks": blocks, "error": error_message
         }, status_code=400)
 
     try:
@@ -974,8 +940,7 @@ def add_device_ip_action(
     crud.add_interface_address(
         db, interface, ip=str(ip_addr),
         prefix=32, # Core devices are assigned as /32
-        subnet_id=None,
-        gateway=gateway
+        subnet_id=None
     )
 
     return RedirectResponse("/devices", status_code=303)
