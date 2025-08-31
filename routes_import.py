@@ -160,7 +160,7 @@ def handle_cisco_import(db: Session, user: User, content: str, parent_networks: 
                 parent_block_obj = db.query(IPBlock).filter(IPBlock.cidr == parent_cidr).first()
                 if parent_block_obj:
                     subnet = crud.create_or_get_subnet(db, str(network.with_prefixlen), parent_block_obj, status=status, created_by=user.username, client_id=client.id if client else None, description=description)
-                    crud.add_interface_address(db, iface, ip=parts[2], prefix=network.prefixlen, subnet_id=subnet.id)
+                    crud.add_interface_address(db, iface, ip=parts[2], prefix=network.prefixlen, subnet_id=subnet.id, gateway=None)
             except ValueError:
                 continue
 
@@ -251,7 +251,7 @@ def handle_mikrotik_import(db: Session, user: User, content: str, parent_network
                     description=description,
                     vlan_id=linked_vlan_object.id if linked_vlan_object else None
                 )
-                crud.add_interface_address(db, iface, ip=str(iface_addr.ip), prefix=network.prefixlen, subnet_id=subnet.id)
+                crud.add_interface_address(db, iface, ip=str(iface_addr.ip), prefix=network.prefixlen, subnet_id=subnet.id, gateway=None)
         except ValueError:
             continue
 
