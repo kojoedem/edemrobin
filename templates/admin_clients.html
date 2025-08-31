@@ -38,6 +38,21 @@
         {% if query %}
         <a href="/admin/clients" class="text-sm text-slate-600 hover:underline">Clear</a>
         {% endif %}
+        <div class="mt-4 flex items-center gap-6">
+            <span class="text-sm font-medium text-slate-600">Filter by status:</span>
+            <div class="flex items-center gap-2">
+                <input type="radio" id="filter_all" name="filter" value="all" {% if filter == 'all' %}checked{% endif %} onchange="this.form.submit()">
+                <label for="filter_all">All</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="radio" id="filter_not_churned" name="filter" value="not_churned" {% if filter == 'not_churned' or not filter %}checked{% endif %} onchange="this.form.submit()">
+                <label for="filter_not_churned">Not Churned</label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="radio" id="filter_churned" name="filter" value="churned" {% if filter == 'churned' %}checked{% endif %} onchange="this.form.submit()">
+                <label for="filter_churned">Churned</label>
+            </div>
+        </div>
     </form>
 </div>
 
