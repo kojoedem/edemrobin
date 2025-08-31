@@ -43,6 +43,10 @@
           <input type="checkbox" id="can_view_nat" name="can_view_nat" value="true" {% if user_to_edit.can_view_nat %}checked{% endif %} class="h-4 w-4">
           <label for="can_view_nat" class="text-sm font-medium">Can View NAT IPs</label>
         </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="can_manage_core_devices" name="can_manage_core_devices" value="true" {% if user_to_edit.can_manage_core_devices %}checked{% endif %} class="h-4 w-4">
+          <label for="can_manage_core_devices" class="text-sm font-medium">Can Manage Core Devices</label>
+        </div>
       </div>
     </div>
 

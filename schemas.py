@@ -37,6 +37,7 @@ class UserCreate(UserBase):
     can_upload_config: bool = False
     can_view_churn: bool = False
     can_manage_allocations: bool = False
+    can_manage_core_devices: bool = False
 
 class User(UserBase):
     id: int
@@ -48,6 +49,7 @@ class User(UserBase):
     can_upload_config: bool
     can_view_churn: bool
     can_manage_allocations: bool
+    can_manage_core_devices: bool
     model_config = ConfigDict(from_attributes=True)
 
 class Subnet(BaseModel):

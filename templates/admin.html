@@ -53,6 +53,10 @@
                 <input type="checkbox" name="can_view_churn" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
                 <label class="text-sm font-medium text-slate-600">Can View Churn</label>
             </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" name="can_manage_core_devices" value="true" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                <label class="text-sm font-medium text-slate-600">Can Manage Core Devices</label>
+            </div>
         </div>
       </div>
       <div class="md:col-span-2 lg:col-span-4 flex justify-end">
@@ -88,6 +92,7 @@
                     {% if u.can_view_nat %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">View NAT</span>{% endif %}
                     {% if u.can_upload_config %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">Upload Config</span>{% endif %}
                     {% if u.can_view_churn %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">View Churn</span>{% endif %}
+                    {% if u.can_manage_core_devices %}<span class="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-1 rounded-full">Manage Core Devices</span>{% endif %}
                 {% endif %}
             </div>
         </td>
