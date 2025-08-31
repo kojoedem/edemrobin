@@ -42,10 +42,10 @@
                 <input type="radio" name="status" value="all" {% if status == 'all' %}checked{% endif %} onchange="this.form.submit()"> All
             </label>
             <label class="flex items-center gap-1.5">
-                <input type="radio" name="status" value="active" {% if status == 'active' %}checked{% endif %} onchange="this.form.submit()"> Active
+                <input type="radio" name="status" value="active" {% if status == 'active' %}checked{% endif %} onchange="this.form.submit()"> Not Churned
             </label>
             <label class="flex items-center gap-1.5">
-                <input type="radio" name="status" value="inactive" {% if status == 'inactive' %}checked{% endif %} onchange="this.form.submit()"> Inactive
+                <input type="radio" name="status" value="inactive" {% if status == 'inactive' %}checked{% endif %} onchange="this.form.submit()"> Churned
             </label>
         </div>
         <button type="submit" class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Search</button>
