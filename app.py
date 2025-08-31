@@ -469,10 +469,10 @@ def admin_clients_page(request: Request, db: Session = Depends(get_db), query: O
         clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
 
     if status == "inactive": # Churned
-        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated).distinct()}
+        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
         clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
     elif status == "active": # Not Churned
-        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated).distinct()}
+        churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
         clients_query = clients_query.filter(models.Client.id.notin_(churned_client_ids))
 
     clients = clients_query.order_by(models.Client.name).all()
@@ -563,7 +563,7 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
     clients_query = db.query(models.Client)
     if query:
         if query.lower() in ["churned", "churn", "inactive"]:
-            churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated).distinct()}
+            churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
             clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
         else:
             clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
