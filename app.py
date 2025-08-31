@@ -552,7 +552,10 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
     user = get_current_user(request, db)
 
     # Search Clients
-    clients = db.query(models.Client).filter(models.Client.name.ilike(f"%{query}%")).all()
+    if query.lower() in ["churned", "churn", "inactive"]:
+        clients = db.query(models.Client).filter(models.Client.is_active == False).all()
+    else:
+        clients = db.query(models.Client).filter(models.Client.name.ilike(f"%{query}%")).all()
 
     # Search Subnets and IPs
     subnets_data = []
@@ -589,9 +592,21 @@ def search_results_page(request: Request, query: str, db: Session = Depends(get_
         vlan_filter.append(models.VLAN.vlan_id == int(query))
     vlans = db.query(models.VLAN).filter(or_(*vlan_filter)).all()
 
+    # Search NAT IPs
+    nat_ips = db.query(models.NatIp).filter(
+        or_(
+            models.NatIp.ip_address.ilike(f"%{query}%"),
+            models.NatIp.description.ilike(f"%{query}%")
+        )
+    ).all()
+
+    # Search Devices
+    devices = db.query(models.Device).filter(models.Device.hostname.ilike(f"%{query}%")).all()
+
     return templates.TemplateResponse("search_results.html", {
         "request": request, "user": user, "query": query,
-        "clients": clients, "subnets": subnets_data, "vlans": vlans
+        "clients": clients, "subnets": subnets_data, "vlans": vlans,
+        "nat_ips": nat_ips, "devices": devices
     })
 
 
