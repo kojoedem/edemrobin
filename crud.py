@@ -174,8 +174,8 @@ def get_or_create_interface(db: Session, device: Device, name: str, description:
     db.refresh(itf)
     return itf
 
-def add_interface_address(db: Session, interface: Interface, ip: str, prefix: int, subnet_id: int | None = None):
-    addr = InterfaceAddress(interface_id=interface.id, ip=ip, prefix=prefix, subnet_id=subnet_id)
+def add_interface_address(db: Session, interface: Interface, ip: str, prefix: int, subnet_id: int | None = None, gateway: str | None = None):
+    addr = InterfaceAddress(interface_id=interface.id, ip=ip, prefix=prefix, subnet_id=subnet_id, gateway=gateway)
     db.add(addr)
     db.commit()
     db.refresh(addr)
