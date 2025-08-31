@@ -154,13 +154,14 @@ def list_blocks_with_utilization(db: Session):
     return results
 
 # ---------- Devices & Interfaces ----------
-def get_or_create_device(db: Session, hostname: str, vendor: str = "cisco", model: str | None = None, mgmt_ip: str | None = None, site: str | None = None, username: str | None = None, password: str | None = None):
+def get_or_create_device(db: Session, hostname: str, vendor: str = "cisco", model: str | None = None, mgmt_ip: str | None = None, site: str | None = None, username: str | None = None, password: str | None = None, is_core_device: bool = False):
     dev = db.query(Device).filter(Device.hostname == hostname).first()
     if dev:
         if username:
             dev.username = username
         if password:
             dev.password = password
+        dev.is_core_device = is_core_device
         db.commit()
         db.refresh(dev)
         return dev
@@ -172,7 +173,8 @@ def get_or_create_device(db: Session, hostname: str, vendor: str = "cisco", mode
         mgmt_ip=mgmt_ip,
         site=site,
         username=username,
-        password=password
+        password=password,
+        is_core_device=is_core_device
     )
     db.add(dev)
     db.commit()
