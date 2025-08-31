@@ -134,6 +134,7 @@ class Device(Base):
     model = Column(String, nullable=True)
     mgmt_ip = Column(String, nullable=True)
     site = Column(String, nullable=True)
+    is_core_device = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     interfaces = relationship("Interface", back_populates="device", cascade="all, delete-orphan")

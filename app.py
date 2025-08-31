@@ -880,7 +880,7 @@ def device_list_page(request: Request, db: Session = Depends(get_db)):
         blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
     else:
         blocks = user.allowed_blocks
-    devices = db.query(models.Device).order_by(models.Device.hostname).all()
+    devices = db.query(models.Device).filter(models.Device.is_core_device == True).order_by(models.Device.hostname).all()
     return templates.TemplateResponse("devices.html", {
         "request": request, "user": user, "devices": devices, "blocks": blocks, "error": None
     })
@@ -904,7 +904,7 @@ def add_device_ip_action(
             blocks = db.query(models.IPBlock).order_by(models.IPBlock.cidr).all()
         else:
             blocks = user.allowed_blocks
-        devices = db.query(models.Device).order_by(models.Device.hostname).all()
+        devices = db.query(models.Device).filter(models.Device.is_core_device == True).order_by(models.Device.hostname).all()
         return templates.TemplateResponse("devices.html", {
             "request": request, "user": user, "devices": devices, "blocks": blocks, "error": error_message
         }, status_code=400)
@@ -931,7 +931,8 @@ def add_device_ip_action(
         hostname=hostname,
         site=location,
         username=username,
-        password=password
+        password=password,
+        is_core_device=True
     )
 
     interface_name = f"manual_{ip_addr}"
