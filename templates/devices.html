@@ -11,23 +11,101 @@
 
 <div class="mb-8">
     <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <form method="post" action="/devices/add" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="md:col-span-1">
-                <label for="device_name" class="text-sm font-medium text-slate-600 block mb-1">Device Name</label>
-                <input type="text" name="device_name" id="device_name" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., core-router-01" required>
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline">{{ error }}</span>
+        </div>
+        {% endif %}
+        <form method="post" action="/devices/add" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="lg:col-span-2">
+                <label for="block_id" class="text-sm font-medium text-slate-600 block mb-1">Parent Block</label>
+                <select name="block_id" id="block_id" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
+                <option value="" disabled selected>-- Select a Block --</option>
+                {% for block in blocks %}
+                    <option value="{{ block.id }}">{{ block.cidr }} ({{ block.description or 'No description' }})</option>
+                {% endfor %}
+                </select>
             </div>
-            <div class="md:col-span-1">
-                <label for="ip_address" class="text-sm font-medium text-slate-600 block mb-1">IP Address (with mask)</label>
-                <input type="text" name="ip_address" id="ip_address" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., 192.168.1.1/24" required>
+
+            <div class="lg:col-span-2">
+                <label for="ip_address" class="text-sm font-medium text-slate-600 block mb-1">IP Address</label>
+                <select name="ip_address" id="ip_address" class="w-full border-slate-300 rounded-md shadow-sm focus:border-sky-500 focus:ring-sky-500" required disabled>
+                <option value="" disabled selected>-- Select Block First --</option>
+                </select>
+                <span id="ip_loading_spinner" class="hidden text-sm text-slate-500">Loading...</span>
             </div>
-            <div class="md:col-span-1">
-                <label for="location" class="text-sm font-medium text-slate-600 block mb-1">Location / Site (optional)</label>
-                <input type="text" name="location" id="location" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., Main Office">
+
+            <div>
+                <label for="hostname" class="text-sm font-medium text-slate-600 block mb-1">Device Name / Hostname</label>
+                <input type="text" name="hostname" id="hostname" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., core-router-01" required>
             </div>
-            <div class="md:col-span-3 flex justify-end">
-                <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Add Core Device IP</button>
+
+            <div>
+                <label for="gateway" class="text-sm font-medium text-slate-600 block mb-1">Gateway (optional)</label>
+                <input type="text" name="gateway" id="gateway" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., 10.0.0.1">
+            </div>
+
+            <div>
+                <label for="username" class="text-sm font-medium text-slate-600 block mb-1">Username (optional)</label>
+                <input type="text" name="username" id="username" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., admin">
+            </div>
+
+            <div>
+                <label for="password" class="text-sm font-medium text-slate-600 block mb-1">Password (optional)</label>
+                <input type="password" name="password" id="password" class="w-full border-slate-300 rounded-md shadow-sm">
+            </div>
+
+            <div class="lg:col-span-4 flex justify-end">
+                <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Add Core Device</button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const blockSelect = document.getElementById('block_id');
+    const ipSelect = document.getElementById('ip_address');
+    const loadingSpinner = document.getElementById('ip_loading_spinner');
+
+    blockSelect.addEventListener('change', function() {
+        const blockId = this.value;
+        ipSelect.disabled = true;
+        ipSelect.innerHTML = '<option value="" disabled selected>-- Loading... --</option>';
+        loadingSpinner.classList.remove('hidden');
+
+        if (!blockId) {
+            ipSelect.innerHTML = '<option value="" disabled selected>-- Select Block First --</option>';
+            loadingSpinner.classList.add('hidden');
+            return;
+        }
+
+        fetch(`/api/blocks/${blockId}/available_ips`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                ipSelect.innerHTML = '<option value="" disabled selected>-- Select an IP Address --</option>';
+                data.available_ips.forEach(ip => {
+                    const option = document.createElement('option');
+                    option.value = ip;
+                    option.textContent = ip;
+                    ipSelect.appendChild(option);
+                });
+                ipSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error('Error fetching available IPs:', error);
+                ipSelect.innerHTML = '<option value="" disabled selected>-- Error Loading IPs --</option>';
+            })
+            .finally(() => {
+                loadingSpinner.classList.add('hidden');
+            });
+    });
+});
+</script>
 {% endblock %}
