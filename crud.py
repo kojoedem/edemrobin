@@ -157,7 +157,6 @@ def list_blocks_with_utilization(db: Session):
 def get_or_create_device(db: Session, hostname: str, vendor: str = "cisco", model: str | None = None, mgmt_ip: str | None = None, site: str | None = None, username: str | None = None, password: str | None = None):
     dev = db.query(Device).filter(Device.hostname == hostname).first()
     if dev:
-        # Update existing device's credentials if provided
         if username:
             dev.username = username
         if password:
@@ -190,8 +189,8 @@ def get_or_create_interface(db: Session, device: Device, name: str, description:
     db.refresh(itf)
     return itf
 
-def add_interface_address(db: Session, interface: Interface, ip: str, prefix: int, subnet_id: int | None = None, gateway: str | None = None):
-    addr = InterfaceAddress(interface_id=interface.id, ip=ip, prefix=prefix, subnet_id=subnet_id, gateway=gateway)
+def add_interface_address(db: Session, interface: Interface, ip: str, prefix: int, subnet_id: int | None = None):
+    addr = InterfaceAddress(interface_id=interface.id, ip=ip, prefix=prefix, subnet_id=subnet_id)
     db.add(addr)
     db.commit()
     db.refresh(addr)

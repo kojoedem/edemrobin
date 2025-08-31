@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% block title %}Device IP Assignments - IPAM{% endblock %}
+{% block title %}Core Device Assignments - IPAM{% endblock %}
 
 {% block content %}
 <div class="mb-6 border-b border-slate-200 pb-4">
@@ -42,11 +42,6 @@
             </div>
 
             <div>
-                <label for="gateway" class="text-sm font-medium text-slate-600 block mb-1">Gateway (optional)</label>
-                <input type="text" name="gateway" id="gateway" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., 10.0.0.1">
-            </div>
-
-            <div>
                 <label for="username" class="text-sm font-medium text-slate-600 block mb-1">Username (optional)</label>
                 <input type="text" name="username" id="username" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., admin">
             </div>
@@ -56,11 +51,51 @@
                 <input type="password" name="password" id="password" class="w-full border-slate-300 rounded-md shadow-sm">
             </div>
 
+            <div>
+                <label for="location" class="text-sm font-medium text-slate-600 block mb-1">Location / Site (optional)</label>
+                <input type="text" name="location" id="location" class="w-full border-slate-300 rounded-md shadow-sm" placeholder="e.g., Main Office">
+            </div>
+
             <div class="lg:col-span-4 flex justify-end">
                 <button class="bg-slate-800 text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Add Core Device</button>
             </div>
         </form>
     </div>
+</div>
+
+<h2 class="text-xl font-semibold text-slate-600 mb-4">Existing Core Devices</h2>
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-x-auto">
+  <table class="min-w-full">
+    <thead class="bg-slate-50">
+      <tr>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Hostname</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">IP Address</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Username</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Password</th>
+        <th class="text-left p-4 text-sm font-semibold text-slate-600">Site</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-200">
+      {% for device in devices %}
+      <tr class="hover:bg-slate-50">
+        <td class="p-4 font-semibold text-slate-700">{{ device.hostname }}</td>
+        <td class="p-4 font-mono text-sm">
+          {% for iface in device.interfaces %}
+            {% for addr in iface.addresses %}
+              {{ addr.ip }}/{{ addr.prefix }}<br>
+            {% endfor %}
+          {% endfor %}
+        </td>
+        <td class="p-4 text-sm">{{ device.username or '-' }}</td>
+        <td class="p-4 text-sm font-mono">{{ device.password or '-' }}</td>
+        <td class="p-4 text-sm">{{ device.site or '-' }}</td>
+      </tr>
+      {% endfor %}
+      {% if not devices %}
+      <tr><td colspan="5" class="p-6 text-center text-slate-500">No core devices yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
 </div>
 
 <script>

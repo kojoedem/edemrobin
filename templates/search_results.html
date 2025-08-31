@@ -8,7 +8,7 @@
         <p class="text-lg text-gray-600">Found results for <span class="font-semibold text-gray-900">"{{ query }}"</span></p>
     </div>
 
-    {% if not clients and not subnets and not vlans and not nat_ips and not devices %}
+    {% if not clients and not subnets and not vlans %}
     <div class="text-center py-16">
         <p class="text-xl text-gray-500">No results found.</p>
         <p class="text-gray-400 mt-2">Try searching for something else.</p>
@@ -35,26 +35,6 @@
                             <li class="font-mono text-xs text-gray-700">{{ nat.ip_address }}</li>
                             {% endfor %}
                         </ul>
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- NAT IPs -->
-        {% if nat_ips %}
-        <div class="mb-10">
-            <h2 class="text-2xl font-semibold mb-4 border-b pb-2">NAT IPs</h2>
-            <div class="space-y-3">
-                {% for nat in nat_ips %}
-                <div class="bg-white rounded-lg shadow p-4">
-                    <p class="font-mono text-lg">{{ nat.ip_address }}</p>
-                    <p class="text-gray-600">{{ nat.description or 'No description' }}</p>
-                    {% if nat.client %}
-                    <div class="text-sm text-gray-500 mt-2 border-t pt-2">
-                        <span>Client: <a href="/clients/{{ nat.client.id }}" class="text-indigo-600 hover:underline">{{ nat.client.name }}</a></span>
                     </div>
                     {% endif %}
                 </div>
@@ -106,27 +86,6 @@
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="font-bold">VLAN {{ vlan.vlan_id }}</h3>
                     <p class="text-gray-600">{{ vlan.name }}</p>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Devices -->
-        {% if devices %}
-        <div class="mb-10">
-            <h2 class="text-2xl font-semibold mb-4 border-b pb-2">Devices</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% for device in devices %}
-                <div class="block bg-white rounded-lg shadow p-4">
-                    <h3 class="font-bold text-lg text-gray-800">{{ device.hostname }}</h3>
-                    <p class="text-sm text-gray-500">{{ device.vendor }} - {{ device.model or 'N/A' }}</p>
-                    {% if device.mgmt_ip %}
-                    <p class="text-sm text-gray-500">Mgmt IP: <span class="font-mono">{{ device.mgmt_ip }}</span></p>
-                    {% endif %}
-                    {% if device.site %}
-                    <p class="text-sm text-gray-500">Site: {{ device.site }}</p>
-                    {% endif %}
                 </div>
                 {% endfor %}
             </div>

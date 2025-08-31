@@ -172,7 +172,6 @@ class InterfaceAddress(Base):
     interface_id = Column(Integer, ForeignKey("interfaces.id"), nullable=False)
     ip = Column(String, nullable=False)
     prefix = Column(Integer, nullable=False)
-    gateway = Column(String, nullable=True)
     status = Column(Enum(IPStatus), default=IPStatus.imported, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
