@@ -75,6 +75,32 @@ def permission_required(permission_name: str):
         return wrapper
     return decorator
 
+def any_permission_required(permission_names: list[str]):
+    def decorator(endpoint):
+        @wraps(endpoint)
+        async def wrapper(*args, **kwargs):
+            request: Request = kwargs["request"]
+            db: Session = kwargs["db"]
+            user = get_current_user(request, db)
+
+            # Admins have all permissions
+            if user.is_admin:
+                if inspect.iscoroutinefunction(endpoint):
+                    return await endpoint(*args, **kwargs)
+                else:
+                    return endpoint(*args, **kwargs)
+
+            for permission_name in permission_names:
+                if getattr(user, permission_name, False):
+                    if inspect.iscoroutinefunction(endpoint):
+                        return await endpoint(*args, **kwargs)
+                    else:
+                        return endpoint(*args, **kwargs)
+
+            raise HTTPException(status_code=403, detail="You do not have permission to perform this action.")
+        return wrapper
+    return decorator
+
 def admin_required(endpoint):
     @wraps(endpoint)
     async def wrapper(*args, **kwargs):
