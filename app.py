@@ -471,13 +471,22 @@ def delete_block_action(request: Request, block_id: int, db: Session = Depends(g
 # --- Client Management ---
 @app.get("/admin/clients", response_class=HTMLResponse)
 @permission_required("can_view_clients")
-def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None):
+def admin_clients_page(request: Request, db: Session = Depends(get_db), query: Optional[str] = None, filter: str = "not_churned"):
     user = get_current_user(request, db)
     clients_query = db.query(models.Client)
+
     if query:
         clients_query = clients_query.filter(models.Client.name.ilike(f"%{query}%"))
+
+    churned_client_ids = {row[0] for row in db.query(models.Subnet.client_id).filter(models.Subnet.status == models.SubnetStatus.deactivated, models.Subnet.client_id != None).distinct()}
+
+    if filter == "churned":
+        clients_query = clients_query.filter(models.Client.id.in_(churned_client_ids))
+    elif filter == "not_churned":
+        clients_query = clients_query.filter(models.Client.id.notin_(churned_client_ids))
+
     clients = clients_query.order_by(models.Client.name).all()
-    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query})
+    return templates.TemplateResponse("admin_clients.html", {"request": request, "user": user, "clients": clients, "query": query, "filter": filter})
 
 @app.post("/admin/clients/create")
 @permission_required("can_manage_clients")
