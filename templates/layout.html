@@ -48,7 +48,9 @@
               <li><a href="/admin/clients" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🏢 Manage Clients</a></li>
               {% endif %}
 
+              {% if user.is_admin or user.can_manage_core_devices %}
               <li><a href="/devices" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">💻 Add Core Device</a></li>
+              {% endif %}
 
               {% if user.can_manage_nat or user.is_admin %}
               <li><a href="/dashboard/nat_ips" class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-slate-700 hover:text-white">🔥 NAT IPs</a></li>
