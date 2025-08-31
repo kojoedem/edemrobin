@@ -28,6 +28,7 @@ def create_user(db: Session, user: UserCreate):
         can_view_churn=user.can_view_churn,
         can_manage_allocations=user.can_manage_allocations,
         can_manage_core_devices=user.can_manage_core_devices,
+        can_view_core_devices=user.can_view_core_devices,
     )
     db.add(db_user)
     db.commit()

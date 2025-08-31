@@ -31,6 +31,7 @@ class User(Base):
     can_view_churn = Column(Boolean, default=False, nullable=False, server_default="false")
     can_manage_allocations = Column(Boolean, default=False, nullable=False, server_default="false")
     can_manage_core_devices = Column(Boolean, default=False, nullable=False, server_default="false")
+    can_view_core_devices = Column(Boolean, default=False, nullable=False, server_default="false")
 
     allowed_blocks = relationship(
         "IPBlock",

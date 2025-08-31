@@ -13,16 +13,13 @@ from PIL import Image, ImageDraw, ImageFont
 import crud, models, schemas
 from database import engine, Base, SessionLocal
 from ip_allocator import allocate_subnet
-from security import hash_password, verify_password, get_current_user, login_required, admin_required, permission_required
+from security import hash_password, verify_password, get_current_user, login_required, admin_required, permission_required, any_permission_required
 
 from routes_import import router as import_router
 from routes_allocate import router as allocate_router
 from routes_dashboard import router as dashboard_router
 from routes_vlan import router as vlan_router
 from utils import parse_config
-
-
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="IP DB")
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
@@ -45,6 +42,9 @@ def get_db():
 
 @app.on_event("startup")
 def bootstrap_admin():
+    if os.path.exists("./ipdb.sqlite3"):
+        os.remove("./ipdb.sqlite3")
+    Base.metadata.create_all(bind=engine)
     app.state.startup_message = None
     db = SessionLocal()
     try:
@@ -209,6 +209,8 @@ def admin_create_user(
     can_upload_config: bool = Form(False),
     can_view_churn: bool = Form(False),
     can_manage_allocations: bool = Form(False),
+    can_manage_core_devices: bool = Form(False),
+    can_view_core_devices: bool = Form(False),
     db: Session = Depends(get_db)
 ):
     if crud.get_user_by_username(db, username):
@@ -225,6 +227,8 @@ def admin_create_user(
         can_upload_config=can_upload_config,
         can_view_churn=can_view_churn,
         can_manage_allocations=can_manage_allocations,
+        can_manage_core_devices=can_manage_core_devices,
+        can_view_core_devices=can_view_core_devices,
     )
     crud.create_user(db=db, user=user_data)
     return RedirectResponse("/admin/users", status_code=303)
@@ -307,6 +311,8 @@ def edit_user_action(
     can_upload_config: bool = Form(False),
     can_view_churn: bool = Form(False),
     can_manage_allocations: bool = Form(False),
+    can_manage_core_devices: bool = Form(False),
+    can_view_core_devices: bool = Form(False),
     allowed_blocks: List[int] = Form([]),
     db: Session = Depends(get_db),
 ):
@@ -322,6 +328,8 @@ def edit_user_action(
     user_to_edit.can_upload_config = can_upload_config
     user_to_edit.can_view_churn = can_view_churn
     user_to_edit.can_manage_allocations = can_manage_allocations
+    user_to_edit.can_manage_core_devices = can_manage_core_devices
+    user_to_edit.can_view_core_devices = can_view_core_devices
 
     # Update allowed blocks
     user_to_edit.allowed_blocks.clear()
@@ -869,7 +877,7 @@ def reactivate_allocation_action(
 
 # --- Device IP Management ---
 @app.get("/devices", response_class=HTMLResponse)
-@login_required
+@any_permission_required(["can_manage_core_devices", "can_view_core_devices"])
 def device_list_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     # Per user feedback, this page is now just for adding core devices,
@@ -879,7 +887,7 @@ def device_list_page(request: Request, db: Session = Depends(get_db)):
     })
 
 @app.post("/devices/add")
-@permission_required("can_manage_allocations") # Re-using this permission
+@permission_required("can_manage_core_devices")
 def add_device_ip_action(
     request: Request,
     device_name: str = Form(...),
