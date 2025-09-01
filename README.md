@@ -12,11 +12,19 @@ Unlike traditional IPAM tools, EDEMROBIN lets you **upload router configurations
 ---
 
 ## 📸 Screenshots
-> *(Add your screenshots here)*  
-- Dashboard view  
-- Upload config page  
-- IP block grouping  
+### First Login
+> [![Main page](static/edem_robin_login.png)](main page)  
+>
+### Dashboard view  
+> [![Main Page](static/edem_robin_main.png)](Main page)  
+- 
+### Upload config page  
+- [![Device Upload](static/upload_page.png)](Device upload)  
+### Admin page 
+[![Admin page](static/admin_page.png)](Admin)  
 
+### Setting page
+[![Setting](static/setting.png)](Setting)  
 ---
 
 ## 🚀 Why EDEMROBIN?
