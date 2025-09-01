@@ -109,4 +109,4 @@ Contributions are welcome! Please fork the repo and submit a pull request.
 ---
 
 ## 📜 License
-MIT License © 2025 [Your Name]  
+MIT License © 2025 [edemrobin] 
