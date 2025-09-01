@@ -1,109 +1,112 @@
-# EDEMROBIN ---》IP Address Management Tool
+# 🌐 EDEMROBIN
 
-A small web tool for managing IP addresses, VLANs, and users with role-based access.
-Built with **FastAPI**, **SQLite**, and **Tailwind CSS**.
+[![FastAPI](https://img.shields.io/badge/Built%20With-FastAPI-009688?logo=fastapi)](https://fastapi.tiangolo.com/)  
+[![Database](https://img.shields.io/badge/Database-SQLite%20%7C%20Postgres%20%7C%20MySQL-blue?logo=postgresql&logoColor=white)]()  
+[![TailwindCSS](https://img.shields.io/badge/UI-TailwindCSS-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)  
 
----
+**EDEMROBIN** is a lightweight web tool for managing IP addresses, VLANs, and users with role-based access control.  
+Built with **FastAPI** and **Tailwind CSS**, with database support for **SQLite (default)** or **PostgreSQL/MySQL (production)**.  
 
-## Features
-- 🔐 **Authentication**
-  - Login & Logout
-  - User registration (admin can assign role + IP block access)
-- 👥 **Role-based Access**
-  - **Level 1 (Viewer):** can only view IPs and VLANs
-  - **Level 2 (Manager):** can allocate/generate IPs and VLANs
-  - **Admin:** can manage users, roles, and IP blocks
-- 🌐 **IP Address Management**
-  - Admin defines one or more IP blocks (e.g. `192.168.1.0/24`)
-  - Users can allocate subnetworks (e.g. `/30`, `/29`) without conflicts
-  - Tracks VLANs (optional), description, user, and timestamp
-- 📊 **Dashboard**
-  - Left-hand navigation sidebar after login
-  - Links to search IPs, VLANs, and manage resources
+Unlike traditional IPAM tools, EDEMROBIN lets you **upload router configurations directly**—automatically extracting and organizing IP addresses into their respective blocks, VLANs, and groups.  
 
 ---
 
-## Project Structure
-ipdb/
-│── app.py # Main FastAPI app
-│── auth.py # Authentication (login, register, logout)
-│── ip.py # IP allocation & management
-│── admin.py # Admin-only routes (manage users, blocks)
-│── models.py # Database models (User, IPBlock, Allocation, etc.)
-│── database.py # Database session handling
-│── templates/ # Jinja2 HTML templates
-│ ├── base.html # Main layout (with sidebar)
-│ ├── login.html # Login form
-│ ├── register.html # Register form
-│ ├── dashboard.html# Dashboard view
-│── static/ # Tailwind CSS, JS
-│── README.md # Project documentation
-│── .gitignore # Git ignore file
-
+## 📸 Screenshots
+> *(Add your screenshots here)*  
+- Dashboard view  
+- Upload config page  
+- IP block grouping  
 
 ---
 
-## Installation
+## 🚀 Why EDEMROBIN?
+Most open-source IPAM solutions are either:  
+- Too heavy and complex with lots of tabs.  
+- Require manual entry of IPs one by one.  
+- Depend on APIs where you must convert configs into JSON before uploading.  
 
-### 1. Clone repository
+I wanted something simpler:  
+✅ Upload router configs directly.  
+✅ Automatically extract and organize IPs and VLANs.  
+✅ Group them neatly under predefined IP blocks.  
+
+When I couldn’t find a tool that did this, I built **EDEMROBIN**.  
+
+---
+
+## ⚡ Features
+- 📂 **Upload router configs** (Cisco & MikroTik supported).  
+- 🔍 **Automatic parsing**: Extracts IPs, VLANs, and NAT IPs.  
+- 🗂️ **Organized grouping**: Groups IPs under predefined blocks.  
+- 🚫 **Churned client detection**: Interfaces with `shutdown` are grouped automatically.  
+- 👥 **Role-based access**: Manage users with different roles.  
+- 🛠️ **REST API ready**: Access your configs programmatically via FastAPI endpoints.  
+- 🗄️ **Flexible database**: Use SQLite for testing, or Postgres/MySQL for production.  
+
+---
+
+## 🌍 Use Cases
+- Manage IPs across multiple routers with **one upload**.  
+- Track churned/inactive client interfaces.  
+- Use alongside existing IPAM tools to enhance automation workflows.  
+- Ideal for **network engineers** needing a lightweight IPAM alternative.  
+
+---
+
+## 🛠️ Installation
+
+### 1. Clone the repo
 ```bash
-git clone https://github.com/yourusername/ipdb.git
-cd ipdb
+git clone https://github.com/yourusername/edemrobin.git
+cd edemrobin
+```
 
-
+### 2. Create a virtual environment
+```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate   # on Linux/Mac
+venv\Scripts\activate      # on Windows
+```
 
-
+### 3. Install dependencies
+```bash
 pip install -r requirements.txt
+```
 
+### 4. Configure Database
+By default, **SQLite** is used (stored as `edemrobin.db`).  
 
-uvicorn app:app --reload
+To use **PostgreSQL** or **MySQL**, update your `.env` file:
 
-http://127.0.0.1:8000
+```env
+# Example for PostgreSQL
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/edemrobin
 
+# Example for MySQL
+DATABASE_URL=mysql+pymysql://user:password@localhost:3306/edemrobin
+```
 
-## Usage
+### 5. Run the app
+```bash
+uvicorn app.main:app --reload
+```
 
-Go to /register to create your first user (or admin).
+The app will be available at **http://127.0.0.1:8000**
 
-Admin can:
+---
 
-Add IP blocks
+## 🛠️ Roadmap
+- [ ] Add support for Juniper & Huawei configs  
+- [ ] Export IP data (JSON/CSV/XLSX)  
+- [ ] Integration with Ansible & NetBox  
+- [ ] WebSocket-based live updates  
 
-Assign which users can use which blocks
+---
 
-Promote users to Level 1 or Level 2
+## 🤝 Contributing
+Contributions are welcome! Please fork the repo and submit a pull request.  
 
-Normal users can log in at /login.
+---
 
-After login → access the dashboard at /dashboard.
-
-
-## Roles
-
-Admin
-
-Manage users, roles, and IP blocks
-
-Full access
-
-Level 2 (Manager)
-
-Allocate/generate IPs and VLANs from allowed blocks
-
-Level 1 (Viewer)
-
-Only view IPs and VLANs
-
-
-
-To Do / Next Steps
-Add search functionality for IPs & VLANs
-Add audit logs (track who created/edited what)
-Export IP usage as CSV/Excel
-Add frontend enhancements (Tailwind UI components)
-
-
-# UPDATED LOGIC
-I have updated this phase so it can handle router config upload and csv downlaod.
+## 📜 License
+MIT License © 2025 [Your Name]  
