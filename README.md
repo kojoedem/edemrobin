@@ -115,6 +115,14 @@ The app will be available at **http://127.0.0.1:8000**
 Contributions are welcome! Please fork the repo and submit a pull request.  
 
 ---
+## 📚 API Documentation
+
+Once the app is running, you can view the interactive Swagger UI:
+
+📍 http://127.0.0.1:8000/docs  
+📍 http://127.0.0.1:8000/redoc
+
+
 
 ## 📜 License
 MIT License © 2025 [edemrobin] 
